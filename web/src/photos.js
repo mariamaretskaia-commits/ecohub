@@ -67,6 +67,7 @@ export function itemPhotos(item) {
 
 export function photoSrc(path) {
   if (!path) return '';
-  if (String(path).startsWith('http')) return path;
-  return `${import.meta.env.VITE_API_URL || ''}${path}`;
+  const s = String(path);
+  if (s.startsWith('http') || s.startsWith('data:') || s.startsWith('blob:')) return s;
+  return `${import.meta.env.VITE_API_URL || ''}${s}`;
 }

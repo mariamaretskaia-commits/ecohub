@@ -53,6 +53,12 @@ async function initPg() {
     ssl: process.env.DATABASE_SSL === '0' ? false : { rejectUnauthorized: false },
     max: 8,
   });
+  const schemaPath = path.join(__dirname, '..', 'sql', 'supabase-schema.sql');
+  if (fs.existsSync(schemaPath)) {
+    const sql = fs.readFileSync(schemaPath, 'utf8');
+    await pool.query(sql);
+    console.log('✅ Postgres schema ready');
+  }
 }
 
 function ensureSqliteSchema(db) {
