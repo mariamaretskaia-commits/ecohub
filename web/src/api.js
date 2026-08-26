@@ -32,7 +32,8 @@ function getHeaders() {
   const tg = window.Telegram?.WebApp;
 
   if (tg?.initData) {
-    headers['X-Telegram-Init-Data'] = encodeHeader(tg.initData);
+    // initData is already a query-string; do not encodeURIComponent the whole value
+    headers['X-Telegram-Init-Data'] = tg.initData;
   } else {
     headers['X-Dev-User'] = devUserHeader();
   }
@@ -44,11 +45,36 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Wake free-tier host (Render sleep) before real API calls. */
+async function wakeServer() {
+  const bases = [];
+  if (API_BASE) bases.push(API_BASE.replace(/\/$/, ''));
+  else bases.push('');
+  const healthUrls = bases.map((b) => `${b}/health`);
+  const gaps = [0, 2000, 4000, 6000, 8000, 10000, 12000];
+  for (let i = 0; i < gaps.length; i += 1) {
+    if (gaps[i]) await sleep(gaps[i]);
+    for (const url of healthUrls) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.ok) return true;
+      } catch {
+        /* keep trying */
+      }
+    }
+  }
+  return false;
+}
+
 /** Retries help when a free host is waking from sleep (cold start). */
 async function request(path, options = {}) {
+  if (path.startsWith('/api') && !options.skipWake) {
+    await wakeServer();
+  }
+
   const urls = apiUrls(path);
-  const attempts = isTelegramWebApp() ? 4 : 2;
-  const gaps = [0, 2500, 5000, 8000];
+  const attempts = isTelegramWebApp() ? 8 : 3;
+  const gaps = [0, 2000, 3000, 4000, 5000, 7000, 9000, 12000];
 
   let lastError = new Error('Request failed');
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -57,6 +83,7 @@ async function request(path, options = {}) {
       try {
         const res = await fetch(url, {
           ...options,
+          cache: 'no-store',
           headers: {
             ...getHeaders(),
             ...options.headers,
@@ -81,7 +108,7 @@ async function request(path, options = {}) {
 
 function authUploadHeaders() {
   return window.Telegram?.WebApp?.initData
-    ? { 'X-Telegram-Init-Data': encodeHeader(window.Telegram.WebApp.initData) }
+    ? { 'X-Telegram-Init-Data': window.Telegram.WebApp.initData }
     : { 'X-Dev-User': devUserHeader() };
 }
 

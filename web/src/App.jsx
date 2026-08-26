@@ -42,8 +42,11 @@ export default function App() {
       if (!inTelegram) {
         setLoadError('open_telegram');
       } else {
+        const msg = String(e?.message || '');
         setLoadError(
-          'Не удалось подключиться к серверу EcoHub. Подождите немного и нажмите «Повторить», или откройте снова через @EcoHubBY_bot → /start.',
+          msg === 'Unauthorized'
+            ? 'Не удалось войти через Telegram. Закройте Mini App полностью и откройте снова: @EcoHubBY_bot → /start → «EcoHub сейчас».'
+            : 'Не удалось подключиться к серверу EcoHub. Подождите до минуты (сервер может просыпаться) и нажмите «Повторить».',
         );
       }
     } finally {

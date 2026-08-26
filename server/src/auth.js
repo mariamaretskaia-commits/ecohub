@@ -53,8 +53,8 @@ function isLocalHost(req) {
 }
 
 export function authMiddleware(req, res, next) {
-  const initData = req.headers['x-telegram-init-data'];
-  const botToken = process.env.BOT_TOKEN;
+  const raw = req.headers['x-telegram-init-data'];
+  const botToken = String(process.env.BOT_TOKEN || '').trim();
 
   if (req.headers['x-dev-user'] && isLocalHost(req)) {
     try {
@@ -65,8 +65,24 @@ export function authMiddleware(req, res, next) {
     }
   }
 
-  const user = validateTelegramInitData(safeDecode(initData), botToken);
+  if (!botToken) {
+    console.warn('Auth failed: BOT_TOKEN missing');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Client may send encodeURIComponent(initData); try both forms
+  const candidates = [raw, safeDecode(raw)].filter(Boolean);
+  let user = null;
+  for (const candidate of candidates) {
+    user = validateTelegramInitData(candidate, botToken);
+    if (user) break;
+    // If candidate is still encoded once more
+    user = validateTelegramInitData(safeDecode(candidate), botToken);
+    if (user) break;
+  }
+
   if (!user) {
+    console.warn('Auth failed: invalid Telegram initData');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -76,8 +92,8 @@ export function authMiddleware(req, res, next) {
 
 /** Auth if headers present; otherwise continue anonymously. */
 export function optionalAuthMiddleware(req, _res, next) {
-  const initData = req.headers['x-telegram-init-data'];
-  const botToken = process.env.BOT_TOKEN;
+  const raw = req.headers['x-telegram-init-data'];
+  const botToken = String(process.env.BOT_TOKEN || '').trim();
 
   if (req.headers['x-dev-user'] && isLocalHost(req)) {
     try {
@@ -88,7 +104,14 @@ export function optionalAuthMiddleware(req, _res, next) {
     return next();
   }
 
-  const user = validateTelegramInitData(safeDecode(initData), botToken);
-  if (user) req.telegramUser = user;
+  const candidates = [raw, safeDecode(raw)].filter(Boolean);
+  for (const candidate of candidates) {
+    const user = validateTelegramInitData(candidate, botToken)
+      || validateTelegramInitData(safeDecode(candidate), botToken);
+    if (user) {
+      req.telegramUser = user;
+      break;
+    }
+  }
   next();
 }
