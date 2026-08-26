@@ -39,11 +39,13 @@ export default function App() {
     } catch (e) {
       console.error(e);
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
-      setLoadError(
-        inTelegram
-          ? 'Не удалось подключиться к серверу EcoHub. Подождите немного и нажмите «Повторить», или откройте снова через @EcoHubBY_bot → /start.'
-          : 'Откройте EcoHub через Telegram: @EcoHubBY_bot',
-      );
+      if (!inTelegram) {
+        setLoadError('open_telegram');
+      } else {
+        setLoadError(
+          'Не удалось подключиться к серверу EcoHub. Подождите немного и нажмите «Повторить», или откройте снова через @EcoHubBY_bot → /start.',
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -89,11 +91,30 @@ export default function App() {
           <div className="px-4 pt-6">
             <div className="card p-5 text-center">
               <Sticker name="logo" size={56} className="mx-auto" />
-              <p className="type-title mt-4">Сервис временно недоступен</p>
-              <p className="type-body mt-2">{loadError}</p>
-              <button type="button" className="btn-primary mt-4 w-full" onClick={refreshUser}>
-                Повторить
-              </button>
+              {loadError === 'open_telegram' ? (
+                <>
+                  <p className="type-title mt-4">Откройте EcoHub в Telegram</p>
+                  <p className="type-body mt-2">
+                    Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «♻️ EcoHub сейчас».
+                  </p>
+                  <a
+                    className="btn-primary mt-4 inline-flex w-full items-center justify-center"
+                    href="https://t.me/EcoHubBY_bot"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Открыть @EcoHubBY_bot
+                  </a>
+                </>
+              ) : (
+                <>
+                  <p className="type-title mt-4">Сервис временно недоступен</p>
+                  <p className="type-body mt-2">{loadError}</p>
+                  <button type="button" className="btn-primary mt-4 w-full" onClick={refreshUser}>
+                    Повторить
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : loading && !user ? (
