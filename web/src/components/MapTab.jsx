@@ -306,7 +306,7 @@ export default function MapTab() {
             preferCanvas
             fadeAnimation={false}
             markerZoomAnimation={false}
-            attributionControl={false}
+            attributionControl={USE_MAPTILER_VECTOR}
             style={{ height: '100%', width: '100%' }}
           >
             {USE_MAPTILER_VECTOR ? (
