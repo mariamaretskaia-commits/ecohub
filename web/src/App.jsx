@@ -45,8 +45,8 @@ export default function App() {
         const msg = String(e?.message || '');
         setLoadError(
           msg === 'Unauthorized'
-            ? 'Не удалось войти через Telegram. Закройте Mini App полностью и откройте снова: @EcoHubBY_bot → /start → «EcoHub сейчас».'
-            : 'Не удалось подключиться к серверу EcoHub. Подождите до минуты (сервер может просыпаться) и нажмите «Повторить».',
+            ? 'Не удалось войти через Telegram. Полностью закройте Mini App и откройте снова: @EcoHubBY_bot → /start → кнопка приложения.'
+            : 'Не удалось подключиться к серверу EcoHub. Подождите до минуты (сервер может просыпаться) и нажмите «Повторить», или откройте снова через @EcoHubBY_bot → /start.',
         );
       }
     } finally {

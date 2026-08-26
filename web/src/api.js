@@ -34,6 +34,7 @@ function getHeaders() {
   if (tg?.initData) {
     // initData is already a query-string; do not encodeURIComponent the whole value
     headers['X-Telegram-Init-Data'] = tg.initData;
+    headers.Authorization = `tma ${tg.initData}`;
   } else {
     headers['X-Dev-User'] = devUserHeader();
   }
@@ -107,9 +108,14 @@ async function request(path, options = {}) {
 }
 
 function authUploadHeaders() {
-  return window.Telegram?.WebApp?.initData
-    ? { 'X-Telegram-Init-Data': window.Telegram.WebApp.initData }
-    : { 'X-Dev-User': devUserHeader() };
+  if (window.Telegram?.WebApp?.initData) {
+    const initData = window.Telegram.WebApp.initData;
+    return {
+      'X-Telegram-Init-Data': initData,
+      Authorization: `tma ${initData}`,
+    };
+  }
+  return { 'X-Dev-User': devUserHeader() };
 }
 
 async function uploadItem(path, method, formData) {

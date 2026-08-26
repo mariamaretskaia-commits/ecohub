@@ -101,6 +101,12 @@ if (fs.existsSync(webDist)) {
 }
 
 async function setupTelegram(botInstance, url) {
+  try {
+    const me = await botInstance.telegram.getMe();
+    console.log(`🤖 Telegram identity: @${me.username || '?'} id=${me.id}`);
+  } catch (err) {
+    console.warn('Telegram getMe failed:', err.message);
+  }
   const hookUrl = `${url.replace(/\/$/, '')}/telegram/webhook`;
   try {
     await configureBot(botInstance, url);
