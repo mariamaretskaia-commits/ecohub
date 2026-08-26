@@ -6,17 +6,18 @@ import FeedTab from './components/FeedTab';
 import MapTab from './components/MapTab';
 import ProfileTab from './components/ProfileTab';
 import InfoTab from './components/InfoTab';
-import ProfileForm from './components/ProfileForm';
+import ChatTab from './components/ChatTab';
 import Sticker from './components/Sticker';
 import BrandMark from './components/BrandMark';
 
 export default function App() {
   const [tab, setTab] = useState('profile');
   const [user, setUser] = useState(null);
-  const [gateOpen, setGateOpen] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadSlow, setLoadSlow] = useState(false);
+  const [chatWantId, setChatWantId] = useState(null);
+  const [chatUnread, setChatUnread] = useState(0);
 
   useEffect(() => {
     document.documentElement.style.height = '100%';
@@ -35,7 +36,6 @@ export default function App() {
     try {
       const me = await api.getMe();
       setUser(me);
-      if (me.profile_complete) setGateOpen(false);
     } catch (e) {
       console.error(e);
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
@@ -67,7 +67,38 @@ export default function App() {
     return () => clearTimeout(t);
   }, [loading, user]);
 
-  const showGate = Boolean(user && !user.profile_complete && gateOpen);
+  useEffect(() => {
+    if (!user?.profile_complete) return undefined;
+    const refreshUnread = () => {
+      api.getChatUnread()
+        .then((data) => setChatUnread(Number(data?.count || 0)))
+        .catch(() => {});
+    };
+    refreshUnread();
+    const t = setInterval(refreshUnread, 20000);
+    return () => clearInterval(t);
+  }, [user?.profile_complete, user?.id, tab]);
+
+  const openChat = useCallback((wantId) => {
+    if (wantId) setChatWantId(wantId);
+    setTab('chat');
+  }, []);
+
+  const scrollPageTop = useCallback(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    document.getElementById('feed-top')?.scrollIntoView({ behavior: 'auto', block: 'start' });
+    window.Telegram?.WebApp?.scrollTo?.(0, 0);
+  }, []);
+
+  const goToFeed = useCallback(() => {
+    setTab('feed');
+    requestAnimationFrame(() => {
+      scrollPageTop();
+      requestAnimationFrame(scrollPageTop);
+    });
+  }, [scrollPageTop]);
 
   return (
     <div className="relative min-h-screen pb-28 overflow-x-hidden">
@@ -137,24 +168,37 @@ export default function App() {
               )}
             </div>
           </div>
-        ) : showGate ? (
-          <ProfileForm
-            user={user}
-            onSaved={refreshUser}
-            onBrowseMap={() => { setGateOpen(false); setTab('map'); }}
-            intro
-          />
         ) : (
           <>
-            {tab === 'feed' && <FeedTab user={user} onRefresh={refreshUser} onNeedProfile={() => { setGateOpen(true); setTab('profile'); }} />}
+            {tab === 'feed' && (
+              <FeedTab
+                user={user}
+                onRefresh={refreshUser}
+                onNeedProfile={() => setTab('profile')}
+                onOpenChat={openChat}
+              />
+            )}
             {tab === 'map' && <MapTab />}
-            {tab === 'profile' && <ProfileTab user={user} onRefresh={refreshUser} />}
+            {tab === 'chat' && (
+              <ChatTab
+                user={user}
+                initialWantId={chatWantId}
+                onInitialWantHandled={() => setChatWantId(null)}
+                onUnreadChange={setChatUnread}
+                onNeedProfile={() => setTab('profile')}
+              />
+            )}
+            {tab === 'profile' && (
+              <ProfileTab user={user} onRefresh={refreshUser} onGoToFeed={goToFeed} />
+            )}
             {tab === 'info' && <InfoTab />}
           </>
         )}
       </main>
 
-      {!showGate && !loadError && !(loading && !user) && <BottomNav active={tab} onChange={setTab} />}
+      {!loadError && !(loading && !user) && (
+        <BottomNav active={tab} onChange={setTab} chatUnread={chatUnread} />
+      )}
     </div>
   );
 }

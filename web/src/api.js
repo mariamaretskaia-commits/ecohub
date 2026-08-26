@@ -171,6 +171,25 @@ export const api = {
   },
   getPoint: (id) => request(`/api/points/${id}`),
   getLeaderboard: () => request('/api/leaderboard'),
+  getChatUnread: () => request('/api/chat/unread'),
+  getChatThreads: () => request('/api/chat/threads'),
+  getChatMessages: (wantId) => request(`/api/chat/threads/${wantId}/messages`),
+  sendChatMessage: (wantId, body) =>
+    request(`/api/chat/threads/${wantId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  markChatRead: (wantId) =>
+    request(`/api/chat/threads/${wantId}/read`, { method: 'POST' }),
+  editChatMessage: (messageId, body) =>
+    request(`/api/chat/messages/${messageId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ body }),
+    }),
+  deleteChatMessage: (messageId) =>
+    request(`/api/chat/messages/${messageId}`, { method: 'DELETE' }),
+  deleteChatThread: (wantId) =>
+    request(`/api/chat/threads/${wantId}`, { method: 'DELETE' }),
 };
 
 export const CATEGORIES = [

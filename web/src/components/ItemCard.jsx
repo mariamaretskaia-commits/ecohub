@@ -12,6 +12,7 @@ export default function ItemCard({
   onUpdate,
   onNeedProfile,
   onEdit,
+  onOpenChat,
   ownerMode = false,
   favoriteMode = false,
 }) {
@@ -44,11 +45,17 @@ export default function ItemCard({
     setWanting(true);
     try {
       const result = await api.wantItem(item.id);
-      tg.showAlert(
-        result.notified
-          ? 'Автор получил отклик в боте. Пишите @EcoHubBY_bot – сообщения уйдут автору. Личный профиль Telegram не открываем.'
-          : 'Отклик сохранён. Автор ещё не открывал бота – попросите нажать /start в @EcoHubBY_bot.',
-      );
+      if (result.want_id) {
+        onOpenChat?.(result.want_id);
+        tg.showAlert(
+          result.notified
+            ? 'Отклик отправлен. Переписка открыта в разделе «Чат».'
+            : 'Отклик сохранён. Переписка – в разделе «Чат». Автору стоит нажать /start в @EcoHubBY_bot, чтобы получать уведомления.',
+        );
+      } else {
+        tg.showAlert('Отклик сохранён. Откройте раздел «Чат» в приложении.');
+        onOpenChat?.();
+      }
     } catch (e) {
       tg.showAlert(e.message);
     } finally {

@@ -54,7 +54,9 @@ body {
   border-color: #d7efe2 !important;
 }
 
-.leaflet-control-attribution {
+.leaflet-control-attribution,
+.maplibregl-ctrl-attrib,
+.maplibregl-compact-show {
   display: none !important;
 }
 

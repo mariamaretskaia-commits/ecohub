@@ -207,8 +207,8 @@ export default function MapTab() {
   const needTypeFirst = showGrodnoDistricts && !filterType;
   const hideMarkersForCountryZoom = !loc.settlement && zoom < 9;
   const mapPoints = needTypeFirst || hideMarkersForCountryZoom ? [] : points;
-  const showOblasts = !USE_MAPTILER_VECTOR && zoom < 10;
-  const showCities = !USE_MAPTILER_VECTOR && zoom >= 7 && zoom < 12;
+  const showOblasts = zoom < 10;
+  const showCities = zoom >= 7 && zoom < 12;
   const districtPins = showGrodnoDistricts && zoom >= 11 && needTypeFirst
     ? (CITY_DISTRICT_COORDS.Гродно || {})
     : {};
@@ -412,7 +412,6 @@ export default function MapTab() {
           </MapContainer>
         )}
       </div>
-      <p className="type-kicker text-center px-4 mt-1 opacity-70">{MAP_TILE.attribution}</p>
 
       {loadError && (
         <div className="px-4 pt-2">

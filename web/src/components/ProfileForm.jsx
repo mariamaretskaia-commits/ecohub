@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { tg } from '../telegram';
 import Sticker from './Sticker';
+import BrandMark from './BrandMark';
 import { isForbiddenNickname, NICK_ABUSE_MESSAGE } from '../moderation';
 
 const NICK_RE = /^[А-Яа-яЁёІіЎў''\- ]{2,50}$/;
@@ -15,7 +16,7 @@ function isCyrillicNickname(raw) {
   return NICK_RE.test(name) && /[А-Яа-яЁёІіЎў]/.test(name);
 }
 
-export default function ProfileForm({ user, onSaved, onBrowseMap, intro }) {
+export default function ProfileForm({ user, onSaved, intro, compact = false, onCancel }) {
   const [nickname, setNickname] = useState(user?.nickname || '');
   const [consent, setConsent] = useState(Boolean(user?.consent_at));
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,7 @@ export default function ProfileForm({ user, onSaved, onBrowseMap, intro }) {
     e.preventDefault();
     const name = normalizeNickname(nickname);
     if (!isCyrillicNickname(name)) {
-      tg.showAlert('Имя только кириллицей, до 50 символов. Например: Марья Марецкая');
+      tg.showAlert('Имя только кириллицей, до 50 символов. Например: Марья Марецкая, а не Иванов Иван Иванович');
       return;
     }
     if (isForbiddenNickname(name)) {
@@ -42,21 +43,24 @@ export default function ProfileForm({ user, onSaved, onBrowseMap, intro }) {
   };
 
   return (
-    <div className="px-4 pt-2 pb-28">
+    <div className={compact ? '' : 'px-4 pt-2 pb-28'}>
       {intro && (
         <div className="card p-5 mb-4 bg-gradient-to-br from-mint-100 to-sun-50 text-center">
           <Sticker name="person" size={72} className="mx-auto" alt="профиль" />
           <h2 className="type-brand mt-2">Ваш профиль</h2>
           <p className="type-body mt-2">
-            Укажите, как к Вам обращаться. Это имя будут видеть остальные пользователи. Например: Марья Марецкая
+            Укажите, как к Вам обращаться. Это имя будут видеть остальные пользователи.
           </p>
           <p className="type-meta mt-2">
+            Например: Марья Марецкая. Не нужно полное ФИО вроде «Иванов Иван Иванович».
+          </p>
+          <p className="type-meta mt-1">
             Профиль привязан к этому Telegram: один аккаунт – один профиль в EcoHub.
           </p>
         </div>
       )}
 
-      <form onSubmit={save} className="card p-5 space-y-3">
+      <form onSubmit={save} className={`card space-y-3 ${compact ? 'p-4' : 'p-5'}`}>
         <label className="block">
           <span className="type-label">Как к Вам обращаться *</span>
           <input
@@ -84,12 +88,18 @@ export default function ProfileForm({ user, onSaved, onBrowseMap, intro }) {
         <button type="submit" disabled={loading} className="btn-primary w-full">
           {loading ? 'Сохраняем…' : 'Сохранить'}
         </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="btn-secondary w-full">
+            Отмена
+          </button>
+        )}
       </form>
 
-      {onBrowseMap && (
-        <button type="button" onClick={onBrowseMap} className="w-full mt-4 type-kicker">
-          Пока только карта – без объявлений
-        </button>
+      {intro && (
+        <footer className="mt-8 pb-4 text-center">
+          <BrandMark size="sm" className="opacity-40" />
+          <p className="type-kicker mt-2 opacity-40 tracking-wide">© 2026</p>
+        </footer>
       )}
     </div>
   );

@@ -141,6 +141,13 @@ function ensureSqliteSchema(db) {
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(item_id, user_id)
     );
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      want_id INTEGER NOT NULL REFERENCES item_wants(id) ON DELETE CASCADE,
+      sender_id INTEGER NOT NULL REFERENCES users(id),
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -178,16 +185,26 @@ function ensureSqliteSchema(db) {
   }
 
   db.exec(`
-    UPDATE users
-    SET nickname = TRIM(TRIM(COALESCE(last_name, '')) || ' ' || TRIM(COALESCE(first_name, '')) || ' ' || TRIM(COALESCE(patronymic, '')))
-    WHERE (nickname IS NULL OR nickname = '')
-      AND TRIM(COALESCE(first_name, '') || COALESCE(last_name, '')) != ''
-  `);
-  db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique
     ON users(phone) WHERE phone IS NOT NULL AND phone != ''
   `);
   db.exec(`UPDATE items SET type = 'free' WHERE type = 'sharing'`);
+
+  const msgCols = db.prepare('PRAGMA table_info(chat_messages)').all().map((c) => c.name);
+  for (const [col, def] of [
+    ['edited_at', 'TEXT'],
+    ['deleted_at', 'TEXT'],
+  ]) {
+    if (!msgCols.includes(col)) db.exec(`ALTER TABLE chat_messages ADD COLUMN ${col} ${def}`);
+  }
+
+  const wantCols = db.prepare('PRAGMA table_info(item_wants)').all().map((c) => c.name);
+  for (const [col, def] of [
+    ['owner_last_read_at', 'TEXT'],
+    ['buyer_last_read_at', 'TEXT'],
+  ]) {
+    if (!wantCols.includes(col)) db.exec(`ALTER TABLE item_wants ADD COLUMN ${col} ${def}`);
+  }
 }
 
 let ready;

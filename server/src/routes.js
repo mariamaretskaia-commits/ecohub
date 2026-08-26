@@ -9,6 +9,7 @@ import {
   displayName,
 } from './users.js';
 import { storeItemPhotos } from './storage.js';
+import { ensureWantOpeningMessage } from './chat.js';
 
 function sendError(res, err) {
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
@@ -105,7 +106,7 @@ function withPhotos(row) {
   return { ...row, photos, photo_url: photos[0] || row.photo_url || null };
 }
 
-export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAuth = authMiddleware) {
+export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAuth = authMiddleware, webAppUrl = '') {
   app.get('/api/items', optionalAuth, async (req, res) => {
     try {
       const { type, district, category, oblast, settlement, q, mine, favorites } = req.query;
@@ -360,7 +361,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
 
       if (bot) {
         const loud = { disable_notification: false };
-        const closeText = `Переписка по вещи «${item.title}» закрыта: автор отметил её как отданную. Сообщения больше не передаются.`;
+        const closeText = `Переписка по вещи «${item.title}» закрыта: автор отметил её как отданную. Новые сообщения в «Чате» недоступны.`;
         try {
           await bot.telegram.sendMessage(user.telegram_id, closeText, loud);
         } catch { /* */ }
@@ -406,6 +407,19 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         INSERT OR IGNORE INTO item_wants (item_id, buyer_id) VALUES (?, ?)
       `, item.id, buyer.id);
 
+      const want = await get(
+        'SELECT id FROM item_wants WHERE item_id = ? AND buyer_id = ?',
+        item.id,
+        buyer.id,
+      );
+
+      if (want?.id) {
+        await ensureWantOpeningMessage({
+          wantId: want.id,
+          buyerId: buyer.id,
+        });
+      }
+
       const buyerName = displayName(buyer);
       let notified = false;
 
@@ -414,7 +428,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         try {
           await bot.telegram.sendMessage(
             item.owner_tg,
-            `${buyerName} откликнулся на Ваше объявление «${item.title}».\n\nОтветьте прямо в этом чате с ботом – сообщение уйдёт собеседнику. Личные профили Telegram не открываем.`,
+            `${buyerName} откликнулся на Ваше объявление «${item.title}».\n\nОткройте раздел «Чат» в приложении EcoHub – там можно переписываться.`,
             loud,
           );
           notified = true;
@@ -426,14 +440,14 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
           await bot.telegram.sendMessage(
             buyer.telegram_id,
             notified
-              ? `Отклик по вещи «${item.title}» отправлен автору.\n\nПишите сюда, в бота – он передаст сообщения. Не нужно искать личный профиль в Telegram.`
-              : `Отклик по вещи «${item.title}» сохранён.\n\nАвтор ещё не открывал бота. Попросите нажать /start в @EcoHubBY_bot – тогда можно переписываться здесь.`,
+              ? `Отклик по вещи «${item.title}» отправлен автору.\n\nПереписка – в разделе «Чат» в приложении EcoHub.`
+              : `Отклик по вещи «${item.title}» сохранён.\n\nАвтор ещё не открывал бота – попросите нажать /start в @EcoHubBY_bot. Переписка – в разделе «Чат».`,
             loud,
           );
         } catch { /* */ }
       }
 
-      res.json({ ok: true, notified });
+      res.json({ ok: true, notified, want_id: want?.id || null });
     } catch (err) {
       sendError(res, err);
     }

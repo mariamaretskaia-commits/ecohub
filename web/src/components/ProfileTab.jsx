@@ -5,7 +5,7 @@ import ProfileForm from './ProfileForm';
 import ItemCard from './ItemCard';
 import ItemForm from './ItemForm';
 
-export default function ProfileTab({ user, onRefresh }) {
+export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [myItems, setMyItems] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -15,6 +15,7 @@ export default function ProfileTab({ user, onRefresh }) {
   const [creating, setCreating] = useState(false);
   const [openMine, setOpenMine] = useState(true);
   const [openFav, setOpenFav] = useState(false);
+  const [editingName, setEditingName] = useState(false);
 
   const loadMine = async () => {
     setLoadingMine(true);
@@ -61,7 +62,15 @@ export default function ProfileTab({ user, onRefresh }) {
   }
 
   if (!user.profile_complete) {
-    return <ProfileForm user={user} onSaved={onRefresh} intro />;
+    return (
+      <ProfileForm
+        user={user}
+        onSaved={() => {
+          onRefresh?.();
+        }}
+        intro
+      />
+    );
   }
 
   if (creating) {
@@ -103,6 +112,27 @@ export default function ProfileTab({ user, onRefresh }) {
         <p className="type-meta mt-1">
           Уведомления об откликах – в чате @EcoHubBY_bot. Включите звук в настройках чата.
         </p>
+        {!editingName ? (
+          <button
+            type="button"
+            onClick={() => setEditingName(true)}
+            className="btn-secondary mt-4 px-5 py-2.5"
+          >
+            Изменить имя
+          </button>
+        ) : (
+          <div className="mt-4 text-left">
+            <ProfileForm
+              user={user}
+              compact
+              onSaved={() => {
+                setEditingName(false);
+                onRefresh?.();
+              }}
+              onCancel={() => setEditingName(false)}
+            />
+          </div>
+        )}
       </div>
 
       <div className="card p-5 mt-4">
@@ -179,9 +209,16 @@ export default function ProfileTab({ user, onRefresh }) {
           ) : favorites.length === 0 ? (
             <div className="card p-6 text-center">
               <Sticker name="favorite" size={64} className="mx-auto mb-2" alt="избранное" />
-              <p className="type-body">
+              <p className="type-body mb-4">
                 Отмечайте понравившиеся объявления значком в разделе «Даром» – они появятся здесь.
               </p>
+              <button
+                type="button"
+                onClick={onGoToFeed}
+                className="btn-primary w-full py-3"
+              >
+                Перейти к объявлениям
+              </button>
             </div>
           ) : (
             <div className="space-y-4">

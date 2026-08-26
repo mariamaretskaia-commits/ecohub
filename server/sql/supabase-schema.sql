@@ -102,6 +102,22 @@ CREATE TABLE IF NOT EXISTS item_favorites (
   UNIQUE (item_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id BIGSERIAL PRIMARY KEY,
+  want_id BIGINT NOT NULL REFERENCES item_wants(id) ON DELETE CASCADE,
+  sender_id BIGINT NOT NULL REFERENCES users(id),
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS chat_messages_want_id_idx ON chat_messages(want_id);
+
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+ALTER TABLE item_wants ADD COLUMN IF NOT EXISTS owner_last_read_at TIMESTAMPTZ;
+ALTER TABLE item_wants ADD COLUMN IF NOT EXISTS buyer_last_read_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT

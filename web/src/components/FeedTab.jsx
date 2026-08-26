@@ -4,7 +4,7 @@ import ItemCard from './ItemCard';
 import Sticker from './Sticker';
 import LocationSelect from './LocationSelect';
 
-export default function FeedTab({ user, onRefresh, onNeedProfile }) {
+export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterLocation, setFilterLocation] = useState({ oblast: '', settlement: '', district: '' });
@@ -44,7 +44,7 @@ export default function FeedTab({ user, onRefresh, onNeedProfile }) {
     : 'Свои объявления добавляйте в Профиле → Мои объявления.';
 
   return (
-    <div className="px-4 pt-2">
+    <div id="feed-top" className="px-4 pt-2">
       <div className="card p-4 mb-4 bg-gradient-to-br from-mint-100 to-sun-50">
         <div className="flex items-center gap-3">
           <Sticker name="share" size={64} alt="передача вещи" />
@@ -112,6 +112,7 @@ export default function FeedTab({ user, onRefresh, onNeedProfile }) {
                 onRefresh?.();
               }}
               onNeedProfile={onNeedProfile}
+              onOpenChat={onOpenChat}
             />
           ))}
         </div>

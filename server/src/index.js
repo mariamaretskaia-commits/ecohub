@@ -7,6 +7,7 @@ import multer from 'multer';
 import fs from 'fs';
 import { authMiddleware, optionalAuthMiddleware } from './auth.js';
 import { registerUserRoutes, registerItemRoutes, registerPointRoutes } from './routes.js';
+import { registerChatRoutes } from './chat.js';
 import { createBot, configureBot } from '../../bot/src/createBot.js';
 import { initDb } from './db.js';
 import { startPointSync } from './sync.js';
@@ -81,7 +82,8 @@ if (bot) {
 app.use('/uploads', express.static(uploadsDir));
 
 registerUserRoutes(app, authMiddleware);
-registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware);
+registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware, webAppUrl);
+registerChatRoutes(app, authMiddleware, bot, webAppUrl);
 registerPointRoutes(app);
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');
