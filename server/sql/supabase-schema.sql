@@ -94,6 +94,14 @@ CREATE TABLE IF NOT EXISTS item_wants (
   UNIQUE (item_id, buyer_id)
 );
 
+CREATE TABLE IF NOT EXISTS item_favorites (
+  id BIGSERIAL PRIMARY KEY,
+  item_id BIGINT NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (item_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT

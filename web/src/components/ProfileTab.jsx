@@ -8,27 +8,46 @@ import ItemForm from './ItemForm';
 export default function ProfileTab({ user, onRefresh }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [myItems, setMyItems] = useState([]);
+  const [favorites, setFavorites] = useState([]);
   const [loadingMine, setLoadingMine] = useState(true);
+  const [loadingFav, setLoadingFav] = useState(true);
   const [editingItem, setEditingItem] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [openMine, setOpenMine] = useState(true);
+  const [openFav, setOpenFav] = useState(false);
 
   const loadMine = async () => {
     setLoadingMine(true);
     try {
       const data = await api.getItems({ mine: '1' });
-      setMyItems(data);
+      setMyItems(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error(e);
     }
     setLoadingMine(false);
   };
 
+  const loadFavorites = async () => {
+    setLoadingFav(true);
+    try {
+      const data = await api.getFavorites();
+      setFavorites(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    }
+    setLoadingFav(false);
+  };
+
   useEffect(() => {
-    api.getLeaderboard().then(setLeaderboard).catch(console.error);
+    api.getLeaderboard()
+      .then((data) => setLeaderboard(Array.isArray(data) ? data : []))
+      .catch(console.error);
   }, [user?.items_shared]);
 
   useEffect(() => {
     if (!user?.profile_complete) return;
     loadMine();
+    loadFavorites();
   }, [user?.profile_complete, user?.id]);
 
   if (!user) {
@@ -43,6 +62,20 @@ export default function ProfileTab({ user, onRefresh }) {
 
   if (!user.profile_complete) {
     return <ProfileForm user={user} onSaved={onRefresh} intro />;
+  }
+
+  if (creating) {
+    return (
+      <ItemForm
+        onClose={() => setCreating(false)}
+        onSaved={() => {
+          setCreating(false);
+          setOpenMine(true);
+          loadMine();
+          onRefresh?.();
+        }}
+      />
+    );
   }
 
   if (editingItem) {
@@ -73,42 +106,101 @@ export default function ProfileTab({ user, onRefresh }) {
       </div>
 
       <div className="card p-5 mt-4">
-        <h3 className="type-title mb-3">Круг вещей</h3>
+        <h3 className="type-title mb-3">Мои достижения</h3>
         <div className="grid grid-cols-2 gap-3">
           <StatCard value={user.items_shared || 0} label="Вещей отдано" />
           <StatCard value={user.items_taken || 0} label="Вещей взято" />
         </div>
-        <p className="type-meta mt-3">
-          Это дневник, не валюта. Пункты на карте платят живыми рублями по своему прайсу.
-        </p>
       </div>
 
-      <div className="mt-4">
-        <h3 className="type-title mb-3 px-1">Мои объявления</h3>
-        {loadingMine ? (
-          <div className="card p-6 text-center type-empty">Загрузка...</div>
-        ) : myItems.length === 0 ? (
-          <div className="card p-6 text-center">
-            <Sticker name="listing" size={64} className="mx-auto mb-2" alt="объявление" />
-            <p className="type-body">Пока нет активных объявлений. Добавьте вещь во вкладке Даром (+).</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {myItems.map((row) => (
-              <ItemCard
-                key={row.id}
-                item={row}
-                currentUser={user}
-                ownerMode
-                onEdit={setEditingItem}
-                onUpdate={() => {
-                  loadMine();
-                  onRefresh?.();
-                }}
-              />
-            ))}
-          </div>
-        )}
+      <div className="mt-4 space-y-3">
+        <CollapsibleSection
+          title="Мои объявления"
+          sticker="listing"
+          count={myItems.length}
+          open={openMine}
+          onToggle={() => setOpenMine((v) => !v)}
+          action={(
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCreating(true);
+              }}
+              className="shrink-0 h-9 px-3 rounded-full bg-ink text-white text-sm font-extrabold active:scale-95 transition-transform shadow-soft"
+              aria-label="Добавить объявление"
+            >
+              + Добавить
+            </button>
+          )}
+        >
+          {loadingMine ? (
+            <div className="card p-6 text-center type-empty">Загрузка...</div>
+          ) : myItems.length === 0 ? (
+            <div className="card p-6 text-center">
+              <Sticker name="listing" size={64} className="mx-auto mb-2" alt="объявление" />
+              <p className="type-body mb-4">Пока нет активных объявлений.</p>
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="btn-primary w-full py-3"
+              >
+                Добавить объявление
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {myItems.map((row) => (
+                <ItemCard
+                  key={row.id}
+                  item={row}
+                  currentUser={user}
+                  ownerMode
+                  onEdit={setEditingItem}
+                  onUpdate={() => {
+                    loadMine();
+                    onRefresh?.();
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Избранное"
+          sticker="favorite"
+          count={favorites.length}
+          open={openFav}
+          onToggle={() => setOpenFav((v) => !v)}
+        >
+          {loadingFav ? (
+            <div className="card p-6 text-center type-empty">Загрузка...</div>
+          ) : favorites.length === 0 ? (
+            <div className="card p-6 text-center">
+              <Sticker name="favorite" size={64} className="mx-auto mb-2" alt="избранное" />
+              <p className="type-body">
+                Отмечайте понравившиеся объявления значком в разделе «Даром» – они появятся здесь.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {favorites.map((row) => (
+                <ItemCard
+                  key={row.id}
+                  item={row}
+                  currentUser={user}
+                  favoriteMode
+                  onNeedProfile={() => onRefresh?.()}
+                  onUpdate={() => {
+                    loadFavorites();
+                    onRefresh?.();
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </CollapsibleSection>
       </div>
 
       <div className="card p-5 mt-4">
@@ -138,6 +230,45 @@ export default function ProfileTab({ user, onRefresh }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function CollapsibleSection({ title, sticker, count, open, onToggle, action, children }) {
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex items-center gap-3 min-w-0 flex-1 py-1 text-left active:bg-mint-50/60 rounded-xl transition-colors"
+          aria-expanded={open}
+        >
+          <Sticker name={sticker} size={36} alt="" />
+          <span className="type-title truncate">{title}</span>
+        </button>
+        {action}
+        <button
+          type="button"
+          onClick={onToggle}
+          className="shrink-0 flex items-center gap-2 py-1 pl-1 pr-0.5 rounded-xl active:bg-mint-50/60 transition-colors"
+          aria-expanded={open}
+          aria-label={open ? 'Свернуть' : 'Развернуть'}
+        >
+          <span className="type-kicker tabular-nums">{count}</span>
+          <span
+            className={`text-mint-700 text-lg leading-none transition-transform ${open ? 'rotate-180' : ''}`}
+            aria-hidden
+          >
+            ▾
+          </span>
+        </button>
+      </div>
+      {open && (
+        <div className="px-3 pb-3 pt-1 border-t border-mint-100/80">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

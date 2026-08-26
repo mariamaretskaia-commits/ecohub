@@ -8,7 +8,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const usePg = Boolean(process.env.DATABASE_URL);
+const dbUrl = String(process.env.DATABASE_URL || '').trim();
+const usePg = /^postgres(ql)?:\/\//i.test(dbUrl);
 
 let sqlite;
 let pool;
@@ -32,6 +33,9 @@ export function adaptSql(sql) {
   s = s.replace(/datetime\('now'\)/gi, 'NOW()');
   if (/INSERT INTO item_wants/i.test(s) && !/ON CONFLICT/i.test(s)) {
     s = `${s.replace(/;?\s*$/, '')} ON CONFLICT (item_id, buyer_id) DO NOTHING`;
+  }
+  if (/INSERT INTO item_favorites/i.test(s) && !/ON CONFLICT/i.test(s)) {
+    s = `${s.replace(/;?\s*$/, '')} ON CONFLICT (item_id, user_id) DO NOTHING`;
   }
   return s;
 }
@@ -129,6 +133,13 @@ function ensureSqliteSchema(db) {
       buyer_id INTEGER NOT NULL REFERENCES users(id),
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(item_id, buyer_id)
+    );
+    CREATE TABLE IF NOT EXISTS item_favorites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER NOT NULL REFERENCES items(id),
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(item_id, user_id)
     );
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,

@@ -22,7 +22,7 @@ export default function InfoTab() {
         <ul className="space-y-3">
           <Thesis
             title="Выложить вещь"
-            text="Кнопка + во вкладке Даром. Объявление видят все, кто открыл EcoHub."
+            text="Профиль → Мои объявления → «+ Добавить». Объявление видят все, кто открыл EcoHub."
           />
           <Thesis
             title="Хочу взять"

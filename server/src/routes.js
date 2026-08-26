@@ -108,7 +108,7 @@ function withPhotos(row) {
 export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAuth = authMiddleware) {
   app.get('/api/items', optionalAuth, async (req, res) => {
     try {
-      const { type, district, category, oblast, settlement, q, mine } = req.query;
+      const { type, district, category, oblast, settlement, q, mine, favorites } = req.query;
       let sql = `
         SELECT items.*, users.username, users.telegram_id, ${ITEM_NAME_SQL}
         FROM items JOIN users ON items.user_id = users.id
@@ -117,6 +117,33 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       const params = [];
 
       const viewer = req.telegramUser ? await findOrCreateUser(req.telegramUser) : null;
+
+      if (favorites === '1') {
+        if (!viewer) return res.status(401).json({ error: 'Unauthorized' });
+        sql = `
+          SELECT items.*, users.username, users.telegram_id, ${ITEM_NAME_SQL},
+                 item_favorites.created_at AS favorited_at
+          FROM item_favorites
+          JOIN items ON items.id = item_favorites.item_id
+          JOIN users ON items.user_id = users.id
+          WHERE item_favorites.user_id = ?
+            AND users.telegram_id NOT LIKE 'demo_%'
+            AND items.status IN ('active', 'given')
+        `;
+        params.push(viewer.id);
+        sql += ' ORDER BY item_favorites.created_at DESC';
+        let rows = (await all(sql, ...params)).map((row) => ({
+          ...withPhotos(row),
+          is_favorited: true,
+        }));
+        const needle = String(q || '').trim().toLocaleLowerCase('ru');
+        if (needle) {
+          rows = rows.filter((item) => (
+            `${item.title || ''} ${item.description || ''}`.toLocaleLowerCase('ru').includes(needle)
+          ));
+        }
+        return res.json(rows);
+      }
 
       if (mine === '1') {
         if (!viewer) return res.status(401).json({ error: 'Unauthorized' });
@@ -152,6 +179,19 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
           `${item.title || ''} ${item.description || ''}`.toLocaleLowerCase('ru').includes(needle)
         ));
       }
+
+      if (viewer && rows.length) {
+        const favRows = await all(
+          'SELECT item_id FROM item_favorites WHERE user_id = ?',
+          viewer.id,
+        );
+        const favSet = new Set(favRows.map((r) => Number(r.item_id)));
+        rows = rows.map((row) => ({
+          ...row,
+          is_favorited: favSet.has(Number(row.id)),
+        }));
+      }
+
       res.json(rows);
     } catch (err) {
       sendError(res, err);
@@ -286,6 +326,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (item.status !== 'active') return res.status(400).json({ error: 'Объявление уже закрыто' });
 
       await run('DELETE FROM item_wants WHERE item_id = ?', item.id);
+      await run('DELETE FROM item_favorites WHERE item_id = ?', item.id);
       await run('DELETE FROM items WHERE id = ?', item.id);
       res.json({ success: true });
     } catch (err) {
@@ -393,6 +434,46 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       }
 
       res.json({ ok: true, notified });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/items/:id/favorite', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      if (!requireCompleteProfile(user, res)) return;
+
+      const item = await get('SELECT * FROM items WHERE id = ?', req.params.id);
+      if (!item) return res.status(404).json({ error: 'Объявление не найдено' });
+      if (Number(item.user_id) === Number(user.id)) {
+        return res.status(400).json({ error: 'Своё объявление нельзя добавить в избранное' });
+      }
+      if (item.status !== 'active' && item.status !== 'given') {
+        return res.status(400).json({ error: 'Объявление недоступно' });
+      }
+
+      const existing = await get(
+        'SELECT id FROM item_favorites WHERE item_id = ? AND user_id = ?',
+        item.id,
+        user.id,
+      );
+
+      if (existing) {
+        await run('DELETE FROM item_favorites WHERE item_id = ? AND user_id = ?', item.id, user.id);
+        return res.json({ favorited: false });
+      }
+
+      if (item.status !== 'active') {
+        return res.status(400).json({ error: 'Нельзя добавить отданную вещь в избранное' });
+      }
+
+      await run(
+        'INSERT OR IGNORE INTO item_favorites (item_id, user_id) VALUES (?, ?)',
+        item.id,
+        user.id,
+      );
+      res.json({ favorited: true });
     } catch (err) {
       sendError(res, err);
     }

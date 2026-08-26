@@ -1,7 +1,12 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const rootDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 export default defineConfig({
+  envDir: rootDir,
   plugins: [react()],
   server: {
     host: '0.0.0.0',

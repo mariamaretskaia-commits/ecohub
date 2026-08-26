@@ -160,6 +160,9 @@ export const api = {
     request(`/api/items/${id}/give`, { method: 'PATCH' }),
   wantItem: (id) =>
     request(`/api/items/${id}/want`, { method: 'POST' }),
+  toggleFavorite: (id) =>
+    request(`/api/items/${id}/favorite`, { method: 'POST' }),
+  getFavorites: () => request('/api/items?favorites=1'),
   getPoints: (params = {}) => {
     const q = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v))

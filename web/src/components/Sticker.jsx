@@ -9,6 +9,7 @@ const STICKERS = {
   pin: '/stickers/sticker-pin.png?v=2',
   paper: '/stickers/sticker-paper.png?v=2',
   listing: '/stickers/sticker-listing.png?v=2',
+  favorite: '/stickers/sticker-favorite.png?v=7',
   electronics: '/stickers/sticker-tech.png?v=2',
   clothing: '/stickers/sticker-clothes.png?v=2',
   hazardous: '/stickers/sticker-battery.png?v=2',

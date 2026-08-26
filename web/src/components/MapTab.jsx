@@ -9,6 +9,7 @@ import PointDetail from './PointDetail';
 import Sticker, { STICKERS } from './Sticker';
 import { sortByRelevance, relevanceHint } from '../point-rank';
 import { accessInfo } from '../point-access';
+import { MAP_TILE } from '../map-tiles';
 
 const GRODNO_BOUNDS = [
   [53.60, 23.71],
@@ -203,7 +204,8 @@ export default function MapTab() {
 
   const showGrodnoDistricts = loc.settlement === 'Гродно';
   const needTypeFirst = showGrodnoDistricts && !filterType;
-  const mapPoints = needTypeFirst || zoom < 10 ? [] : points;
+  const hideMarkersForCountryZoom = !loc.settlement && zoom < 9;
+  const mapPoints = needTypeFirst || hideMarkersForCountryZoom ? [] : points;
   const showOblasts = zoom < 10;
   const showCities = zoom >= 7 && zoom < 12;
   const districtPins = showGrodnoDistricts && zoom >= 11 && needTypeFirst
@@ -218,7 +220,11 @@ export default function MapTab() {
 
   const changeLoc = (next) => {
     setFocusPoint(null);
-    setLoc(next);
+    setLoc((prev) => ({
+      ...prev,
+      ...next,
+      districts: next.districts ?? prev.districts ?? [],
+    }));
   };
 
   if (selectedPoint) {
@@ -232,12 +238,14 @@ export default function MapTab() {
 
   return (
     <div>
-      <div className="px-4 pt-1 pb-2">
-        <div className="flex items-center gap-2 mb-2">
-          <Sticker name="pin" size={36} />
-          <div>
-            <h2 className="type-brand leading-tight">Карта Беларуси</h2>
-            <p className="type-kicker mt-0.5">Пункты сортировки и приёма сырья</p>
+      <div className="px-4 pt-2 pb-2">
+        <div className="card p-4 mb-4 bg-gradient-to-br from-mint-100 to-sun-50">
+          <div className="flex items-center gap-3">
+            <Sticker name="pin" size={64} alt="карта" />
+            <div>
+              <h2 className="type-brand leading-tight">Карта Беларуси</h2>
+              <p className="type-meta mt-1.5">Пункты сортировки и приёма сырья</p>
+            </div>
           </div>
         </div>
         <LocationSelect
@@ -301,11 +309,11 @@ export default function MapTab() {
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
-              attribution=""
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png"
+              attribution={MAP_TILE.attribution}
+              url={MAP_TILE.url}
               maxZoom={18}
-              maxNativeZoom={18}
-              subdomains="abcd"
+              maxNativeZoom={MAP_TILE.maxNativeZoom}
+              {...(MAP_TILE.subdomains ? { subdomains: MAP_TILE.subdomains } : {})}
               updateWhenIdle
               updateWhenZooming={false}
               keepBuffer={1}
@@ -365,7 +373,7 @@ export default function MapTab() {
                 position={coords}
                 icon={L.divIcon({
                   className: 'map-label-wrap',
-                  html: `<span class="map-label map-label-district${loc.districts.includes(name) ? ' is-active' : ''}">${name} район</span>`,
+                  html: `<span class="map-label map-label-district${(loc.districts || []).includes(name) ? ' is-active' : ''}">${name} район</span>`,
                   iconSize: [0, 0],
                 })}
                 eventHandlers={{
@@ -373,7 +381,8 @@ export default function MapTab() {
                     L.DomEvent.stopPropagation(event);
                     setFocusPoint(null);
                     setLoc((prev) => {
-                      const same = prev.districts.length === 1 && prev.districts[0] === name;
+                      const districts = prev.districts || [];
+                      const same = districts.length === 1 && districts[0] === name;
                       return { ...prev, district: same ? '' : name, districts: same ? [] : [name] };
                     });
                   },
@@ -398,6 +407,7 @@ export default function MapTab() {
           </MapContainer>
         )}
       </div>
+      <p className="type-kicker text-center px-4 mt-1 opacity-70">{MAP_TILE.attribution}</p>
 
       {loadError && (
         <div className="px-4 pt-2">

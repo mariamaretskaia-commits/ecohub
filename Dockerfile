@@ -1,5 +1,10 @@
 FROM node:22-bookworm-slim AS web-build
 
+ARG VITE_MAPTILER_KEY=
+ARG VITE_CARTO_API_KEY=
+ENV VITE_MAPTILER_KEY=$VITE_MAPTILER_KEY
+ENV VITE_CARTO_API_KEY=$VITE_CARTO_API_KEY
+
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci

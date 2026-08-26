@@ -21,3 +21,7 @@ services:
         value: item-photos
       - key: WEBAPP_URL
         sync: false
+      - key: VITE_MAPTILER_KEY
+        sync: false
+      - key: VITE_CARTO_API_KEY
+        sync: false

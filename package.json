@@ -17,6 +17,8 @@
     "deploy:railway": "node scripts/deploy-railway.mjs",
     "oracle:pack": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/oracle/pack.ps1",
     "deploy:free": "node scripts/deploy-free.mjs",
+    "map:setup": "node scripts/setup-maptiler.mjs",
+    "deploy:render": "node scripts/redeploy-render.mjs",
     "seed": "npm run seed --prefix server",
     "bot:setup": "node server/scripts/setup-bot.mjs"
   },
