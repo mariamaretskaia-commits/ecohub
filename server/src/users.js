@@ -97,7 +97,7 @@ export function validateNickname(raw) {
   const nickname = normalizeNickname(raw);
   if (!NICK_RE.test(nickname) || !/[А-Яа-яЁёІіЎў]/.test(nickname)) {
     throw Object.assign(
-      new Error('Имя только кириллицей, до 50 символов. Например: Марья Марецкая, а не Иванов Иван Иванович'),
+      new Error('Имя только кириллицей, до 50 символов. Например: Иванов Иван'),
       { status: 400 },
     );
   }

@@ -25,7 +25,7 @@ export default function ProfileForm({ user, onSaved, intro, compact = false, onC
     e.preventDefault();
     const name = normalizeNickname(nickname);
     if (!isCyrillicNickname(name)) {
-      tg.showAlert('Имя только кириллицей, до 50 символов. Например: Марья Марецкая, а не Иванов Иван Иванович');
+      tg.showAlert('Имя только кириллицей, до 50 символов. Например: Иванов Иван');
       return;
     }
     if (isForbiddenNickname(name)) {
@@ -52,9 +52,6 @@ export default function ProfileForm({ user, onSaved, intro, compact = false, onC
             Укажите, как к Вам обращаться. Это имя будут видеть остальные пользователи.
           </p>
           <p className="type-meta mt-2">
-            Например: Марья Марецкая. Не нужно полное ФИО вроде «Иванов Иван Иванович».
-          </p>
-          <p className="type-meta mt-1">
             Профиль привязан к этому Telegram: один аккаунт – один профиль в EcoHub.
           </p>
         </div>
@@ -67,7 +64,7 @@ export default function ProfileForm({ user, onSaved, intro, compact = false, onC
             className="field"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder="Марья Марецкая"
+            placeholder="Например: Иванов Иван"
             autoComplete="nickname"
             maxLength={50}
           />
