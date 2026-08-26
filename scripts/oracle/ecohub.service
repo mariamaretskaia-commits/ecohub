@@ -1,0 +1,18 @@
+[Unit]
+Description=EcoHub Telegram Mini App
+After=network.target
+
+[Service]
+Type=simple
+User=opc
+WorkingDirectory=/home/opc/ecohub/server
+EnvironmentFile=/home/opc/ecohub/.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+# better-sqlite3 native module
+Environment=PATH=/usr/bin:/bin
+
+[Install]
+WantedBy=multi-user.target

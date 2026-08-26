@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+cloud.env
+*.db
+*.db-shm
+*.db-wal
+server/data/uploads/*
+!server/data/uploads/.gitkeep
+.DS_Store
+*.log
+logs/
+.cursor/
+tmp-eco-docx/
+ecohub-oracle.zip
+logs/

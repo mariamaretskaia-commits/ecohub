@@ -1,0 +1,4 @@
+# Замените ecohub.duckdns.org на ваш бесплатный домен DuckDNS
+ecohub.duckdns.org {
+	reverse_proxy 127.0.0.1:3001
+}

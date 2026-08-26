@@ -1,0 +1,26 @@
+{
+  "name": "chysty-sled",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EcoHub – экосистема Гродно (Telegram Mini App)",
+  "scripts": {
+    "install:all": "npm install && npm install --prefix server && npm install --prefix web && npm install --prefix bot",
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix web\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:web": "npm run dev --prefix web",
+    "dev:bot": "npm run dev --prefix bot",
+    "build": "npm run build --prefix web",
+    "start": "npm run start --prefix server",
+    "tunnel": "npx --yes cloudflared tunnel --url http://127.0.0.1:3001",
+    "host": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-host.ps1",
+    "host:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-host-task.ps1",
+    "deploy:railway": "node scripts/deploy-railway.mjs",
+    "oracle:pack": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/oracle/pack.ps1",
+    "deploy:free": "node scripts/deploy-free.mjs",
+    "seed": "npm run seed --prefix server",
+    "bot:setup": "node server/scripts/setup-bot.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

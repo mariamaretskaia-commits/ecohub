@@ -1,0 +1,19 @@
+{
+  "name": "chysty-sled-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "seed": "node -e \"import('./src/loadEnv.js'); import('./src/seed.js').then(m => m.runSeed())\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.23.0"
+  }
+}

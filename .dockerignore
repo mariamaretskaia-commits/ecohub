@@ -1,0 +1,14 @@
+node_modules
+web/node_modules
+server/node_modules
+bot/node_modules
+web/dist
+.env
+.env.*
+!.env.example
+.git
+.cursor
+*.log
+tmp-*
+web/scripts
+.DS_Store
