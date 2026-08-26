@@ -9,7 +9,8 @@ import PointDetail from './PointDetail';
 import Sticker, { STICKERS } from './Sticker';
 import { sortByRelevance, relevanceHint } from '../point-rank';
 import { accessInfo } from '../point-access';
-import { MAP_TILE } from '../map-tiles';
+import { MAP_TILE, USE_MAPTILER_VECTOR } from '../map-tiles';
+import MapTilerBasemap from './MapTilerBasemap';
 
 const GRODNO_BOUNDS = [
   [53.60, 23.71],
@@ -206,8 +207,8 @@ export default function MapTab() {
   const needTypeFirst = showGrodnoDistricts && !filterType;
   const hideMarkersForCountryZoom = !loc.settlement && zoom < 9;
   const mapPoints = needTypeFirst || hideMarkersForCountryZoom ? [] : points;
-  const showOblasts = zoom < 10;
-  const showCities = zoom >= 7 && zoom < 12;
+  const showOblasts = !USE_MAPTILER_VECTOR && zoom < 10;
+  const showCities = !USE_MAPTILER_VECTOR && zoom >= 7 && zoom < 12;
   const districtPins = showGrodnoDistricts && zoom >= 11 && needTypeFirst
     ? (CITY_DISTRICT_COORDS.Гродно || {})
     : {};
@@ -308,16 +309,20 @@ export default function MapTab() {
             attributionControl={false}
             style={{ height: '100%', width: '100%' }}
           >
-            <TileLayer
-              attribution={MAP_TILE.attribution}
-              url={MAP_TILE.url}
-              maxZoom={18}
-              maxNativeZoom={MAP_TILE.maxNativeZoom}
-              {...(MAP_TILE.subdomains ? { subdomains: MAP_TILE.subdomains } : {})}
-              updateWhenIdle
-              updateWhenZooming={false}
-              keepBuffer={1}
-            />
+            {USE_MAPTILER_VECTOR ? (
+              <MapTilerBasemap />
+            ) : (
+              <TileLayer
+                attribution={MAP_TILE.attribution}
+                url={MAP_TILE.url}
+                maxZoom={18}
+                maxNativeZoom={MAP_TILE.maxNativeZoom}
+                {...(MAP_TILE.subdomains ? { subdomains: MAP_TILE.subdomains } : {})}
+                updateWhenIdle
+                updateWhenZooming={false}
+                keepBuffer={1}
+              />
+            )}
             <GeoJSON
               data={oblastsGeo}
               style={(feature) => ({

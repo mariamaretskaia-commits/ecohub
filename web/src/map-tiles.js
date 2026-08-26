@@ -1,12 +1,13 @@
-/** Map basemap: Russian labels with MapTiler key; otherwise OSM (Cyrillic in BY). */
+/** Map basemap config. MapTiler vector layer = real Russian labels; raster ?language=ru is ignored. */
 const cartoKey = String(import.meta.env.VITE_CARTO_API_KEY || '').trim();
-const maptilerKey = String(import.meta.env.VITE_MAPTILER_KEY || '').trim();
+export const MAPTILER_KEY = String(import.meta.env.VITE_MAPTILER_KEY || '').trim();
+export const USE_MAPTILER_VECTOR = Boolean(MAPTILER_KEY);
 
 /** @type {{ url: string; attribution: string; subdomains?: string; maxNativeZoom: number }} */
 export const MAP_TILE = (() => {
-  if (maptilerKey) {
+  if (MAPTILER_KEY) {
     return {
-      url: `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${maptilerKey}&language=ru`,
+      url: '',
       attribution: '© MapTiler © OpenStreetMap',
       maxNativeZoom: 19,
     };
