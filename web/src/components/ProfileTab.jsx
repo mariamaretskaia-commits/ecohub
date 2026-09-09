@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { tg } from '../telegram';
 import Sticker from './Sticker';
 import ProfileForm from './ProfileForm';
 import ItemCard from './ItemCard';
@@ -16,6 +17,17 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
   const [openMine, setOpenMine] = useState(true);
   const [openFav, setOpenFav] = useState(false);
   const [editingName, setEditingName] = useState(false);
+
+  const handleDeleteProfile = async () => {
+    const confirmed = await tg.showConfirm('Удалить профиль и все данные безвозвратно?');
+    if (!confirmed) return;
+    try {
+      await api.deleteAccount();
+      onRefresh?.();
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось удалить профиль');
+    }
+  };
 
   const loadMine = async () => {
     setLoadingMine(true);
@@ -132,6 +144,15 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
             />
           </div>
         )}
+        <div className="mt-4 pt-3 border-t border-red-100">
+          <button
+            type="button"
+            onClick={handleDeleteProfile}
+            className="btn-danger w-full"
+          >
+            Удалить профиль
+          </button>
+        </div>
       </div>
 
       <div className="card p-5 mt-4">

@@ -313,6 +313,9 @@ body {
   .btn-mint {
     @apply bg-mint-500 text-white text-sm font-extrabold py-3.5 px-6 rounded-full active:scale-95 transition-transform shadow-float;
   }
+  .btn-danger {
+    @apply bg-white text-red-600 text-sm font-extrabold py-2.5 px-5 rounded-full border border-red-200 active:scale-95 transition-transform shadow-soft;
+  }
   .card {
     @apply bg-white/90 backdrop-blur-sm rounded-[1.75rem] shadow-card overflow-hidden;
   }

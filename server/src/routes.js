@@ -68,6 +68,23 @@ export function registerUserRoutes(app, authMiddleware) {
     }
   });
 
+  app.delete('/api/me', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      const userId = user.id;
+      await run('DELETE FROM chat_messages WHERE sender_id = ?', userId);
+      await run('DELETE FROM item_wants WHERE buyer_id = ?', userId);
+      await run('DELETE FROM items WHERE user_id = ?', userId);
+      await run('DELETE FROM item_favorites WHERE user_id = ?', userId);
+      await run('DELETE FROM eco_transactions WHERE user_id = ?', userId);
+      await run('DELETE FROM recycling_submissions WHERE user_id = ?', userId);
+      await run('DELETE FROM users WHERE id = ?', userId);
+      res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
   app.get('/api/leaderboard', async (_req, res) => {
     try {
       const leaders = await all(`
