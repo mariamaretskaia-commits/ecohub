@@ -104,7 +104,7 @@ export default function App() {
     if (loadError !== 'open_telegram') return undefined;
     if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return undefined;
     const t = setTimeout(() => {
-      window.location.replace('https://t.me/EcoHubBY_bot?startapp=menu');
+      window.location.replace('https://t.me/EcoHubBY_bot/ecohub');
     }, 1500);
     return () => clearTimeout(t);
   }, [loadError]);
@@ -164,15 +164,15 @@ export default function App() {
 
   const enterTelegram = useCallback(() => {
     // Prefer the native scheme (works inside Telegram's built-in browser and
-    // on phones): it opens the bot and launches the Main Mini App directly.
-    // If the client blocks tg://, fall back to the https t.me link.
+    // on phones): it opens the registered Mini App "ecohub" directly.
+    // If the client blocks tg://, fall back to the https direct link.
     try {
-      window.location.href = 'tg://resolve?domain=EcoHubBY_bot&startapp=menu';
+      window.location.href = 'tg://resolve?domain=EcoHubBY_bot&appname=ecohub';
     } catch {
       /* ignore */
     }
     setTimeout(() => {
-      window.location.href = 'https://t.me/EcoHubBY_bot?startapp=menu';
+      window.location.href = 'https://t.me/EcoHubBY_bot/ecohub';
     }, 700);
   }, []);
 
