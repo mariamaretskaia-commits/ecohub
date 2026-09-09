@@ -41,33 +41,33 @@ export default function App() {
       console.error(e);
       const webAppExists = Boolean(window.Telegram?.WebApp);
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
-      // Restored from a stale status-bar session: Telegram WebView exists but
-      // initData wasn't injected. Reload once so Telegram re-initializes the app.
+      // Resumed from the status-bar session: Telegram WebView exists but
+      // initData may arrive a moment after load. Do NOT reload or close —
+      // wait up to ~6s for Telegram to inject it, then retry auth.
       if (webAppExists && !inTelegram) {
-        if (!sessionStorage.getItem('ecohub_reload_attempted')) {
-          try {
-            sessionStorage.setItem('ecohub_reload_attempted', '1');
-            window.location.reload();
+        let tries = 0;
+        const pollInitData = setInterval(() => {
+          tries += 1;
+          if (window.Telegram?.WebApp?.initData) {
+            clearInterval(pollInitData);
+            try {
+              sessionStorage.removeItem('ecohub_reload_attempted');
+            } catch {
+              /* ignore */
+            }
+            tg.ready();
+            refreshUser();
             return;
-          } catch {
-            /* fall through */
           }
-        }
-        // Stale background session: without a registered Main Mini App in
-        // BotFather, deep links like tg://…&startapp make Telegram report
-        // "BOT_INVALID". Do NOT navigate anywhere — just close quietly.
-        try {
-          sessionStorage.removeItem('ecohub_reload_attempted');
-        } catch {
-          /* ignore */
-        }
-        setTimeout(() => {
-          try {
-            tg.close();
-          } catch {
-            /* ignore */
+          if (tries >= 20) {
+            clearInterval(pollInitData);
+            // Telegram never initialized this stale session: show the minimal
+            // launch screen instead of silently closing (never self-close —
+            // that makes the status bar look broken).
+            setLoadError('open_telegram');
           }
-        }, 700);
+        }, 300);
+        setLoading(false);
         return;
       }
       if (!inTelegram) {
@@ -109,21 +109,41 @@ export default function App() {
     return () => clearTimeout(t);
   }, [loadError]);
 
-  // Never let the Mini App stay "running in background": if the user leaves
-  // (home gesture / iOS minimize), close the session for real so Telegram
-  // cannot keep the "EcoHub сейчас" status bar over the chat.
+  // The "EcoHub сейчас" status bar only exists while the Mini App stays
+  // "running in background". Close the session shortly AFTER the app is really
+  // hidden (home gesture / switch away), with a delay so transient visibility
+  // changes while Telegram resumes the WebView don't kill the app.
   useEffect(() => {
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden' && window.Telegram?.WebApp?.initData) {
+    let closeTimer = null;
+    const scheduleClose = () => {
+      if (!window.Telegram?.WebApp?.initData) return;
+      if (closeTimer) return;
+      closeTimer = setTimeout(() => {
+        closeTimer = null;
         try {
           tg.close();
         } catch {
           /* ignore */
         }
+      }, 2500);
+    };
+    const cancelClose = () => {
+      if (closeTimer) {
+        clearTimeout(closeTimer);
+        closeTimer = null;
       }
     };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') scheduleClose();
+      else cancelClose();
+    };
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', scheduleClose);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', scheduleClose);
+      if (closeTimer) clearTimeout(closeTimer);
+    };
   }, []);
 
   useEffect(() => {
