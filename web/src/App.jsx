@@ -35,10 +35,23 @@ export default function App() {
     setLoadSlow(false);
     try {
       const me = await api.getMe();
+      sessionStorage.removeItem('ecohub_reload_attempted');
       setUser(me);
     } catch (e) {
       console.error(e);
+      const webAppExists = Boolean(window.Telegram?.WebApp);
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
+      // Restored from a stale status-bar session: Telegram WebView exists but
+      // initData wasn't injected. Reload once so Telegram re-initializes the app.
+      if (webAppExists && !inTelegram && !sessionStorage.getItem('ecohub_reload_attempted')) {
+        try {
+          sessionStorage.setItem('ecohub_reload_attempted', '1');
+          window.location.reload();
+          return;
+        } catch {
+          /* stay with fallback */
+        }
+      }
       if (!inTelegram) {
         setLoadError('open_telegram');
       } else {
@@ -66,6 +79,17 @@ export default function App() {
     const t = setTimeout(() => setLoadSlow(true), 8000);
     return () => clearTimeout(t);
   }, [loading, user]);
+
+  // Opened outside Telegram (e.g. from the stale "EcoHub сейчас" status bar).
+  // On mobile, re-enter Telegram automatically so the app launches for real.
+  useEffect(() => {
+    if (loadError !== 'open_telegram') return undefined;
+    if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return undefined;
+    const t = setTimeout(() => {
+      window.location.replace('https://t.me/EcoHubBY_bot?startapp=menu');
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [loadError]);
 
   useEffect(() => {
     if (!user?.profile_complete) return undefined;
@@ -132,7 +156,7 @@ export default function App() {
                 <>
                   <p className="type-title mt-4">Откройте EcoHub в Telegram</p>
                   <p className="type-body mt-2">
-                    Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «Запустить EcoHub».
+                    Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «Запустить EcoHub». Если плашка «EcoHub сейчас» осталась — закройте приложение полностью (свайп вверх) и откройте заново.
                   </p>
                   <a
                     className="btn-primary mt-4 inline-flex w-full items-center justify-center"
