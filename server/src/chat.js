@@ -307,7 +307,12 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) 
         JOIN users owner ON owner.id = items.user_id
         JOIN users buyer ON buyer.id = item_wants.buyer_id
         WHERE item_wants.buyer_id = ? OR items.user_id = ?
-        ORDER BY COALESCE(last_at, item_wants.created_at) DESC
+        ORDER BY COALESCE(
+          (SELECT created_at FROM chat_messages
+           WHERE want_id = item_wants.id AND deleted_at IS NULL
+           ORDER BY created_at DESC LIMIT 1),
+          item_wants.created_at
+        ) DESC
       `,
       user.id,
       user.id,
