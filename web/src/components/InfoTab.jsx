@@ -102,11 +102,6 @@ export default function InfoTab({ onChangeTab }) {
           <LinkWord onClick={() => onChangeTab?.('map')}>«Карту»</LinkWord>
         </p>
       </div>
-
-      <div className="text-center type-meta py-3">
-        <p>Конкурс «100 идей для Беларуси»</p>
-        <p className="mt-1">Республика Беларусь · 2026</p>
-      </div>
     </div>
   );
 }
