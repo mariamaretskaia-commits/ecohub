@@ -43,14 +43,26 @@ export default function App() {
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
       // Restored from a stale status-bar session: Telegram WebView exists but
       // initData wasn't injected. Reload once so Telegram re-initializes the app.
-      if (webAppExists && !inTelegram && !sessionStorage.getItem('ecohub_reload_attempted')) {
-        try {
-          sessionStorage.setItem('ecohub_reload_attempted', '1');
-          window.location.reload();
-          return;
-        } catch {
-          /* stay with fallback */
+      if (webAppExists && !inTelegram) {
+        if (!sessionStorage.getItem('ecohub_reload_attempted')) {
+          try {
+            sessionStorage.setItem('ecohub_reload_attempted', '1');
+            window.location.reload();
+            return;
+          } catch {
+            /* stay with fallback */
+          }
         }
+        // Zombie background session: Telegram bridge is there but it never
+        // re-initialized. Close the app for real so Telegram clears the
+        // "EcoHub сейчас" status bar instead of showing instructions.
+        try {
+          sessionStorage.removeItem('ecohub_reload_attempted');
+        } catch {
+          /* ignore */
+        }
+        tg.close();
+        return;
       }
       if (!inTelegram) {
         setLoadError('open_telegram');
@@ -168,16 +180,13 @@ export default function App() {
               <Sticker name="logo" size={56} className="mx-auto" />
               {loadError === 'open_telegram' ? (
                 <>
-                  <p className="type-title mt-4">Откройте EcoHub в Telegram</p>
-                  <p className="type-body mt-2">
-                    Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «Запустить EcoHub». Если плашка «EcoHub сейчас» осталась — закройте приложение полностью (свайп вверх) и откройте заново.
-                  </p>
+                  <p className="type-body mt-2">Мини-приложение открывается в Telegram.</p>
                   <button
                     type="button"
                     className="btn-primary mt-4 inline-flex w-full items-center justify-center"
                     onClick={enterTelegram}
                   >
-                    Открыть в Telegram и запустить EcoHub
+                    Запустить EcoHub
                   </button>
                 </>
               ) : (
