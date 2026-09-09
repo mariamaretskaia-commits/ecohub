@@ -1,0 +1,27 @@
+name: keepalive
+
+on:
+  schedule:
+    # Every 5 minutes - keeps the free-tier Render web service awake
+    # (Render free plans sleep after ~15 min of no traffic)
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping ecohub health endpoint
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://ecohub-baoc.onrender.com/health)
+          echo "health HTTP $code"
+          if [ "$code" != "200" ]; then
+            # First hit may wake the service; try once more after a short wait
+            sleep 20
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://ecohub-baoc.onrender.com/health)
+            echo "health retry HTTP $code"
+          fi
+          test "$code" = "200"
