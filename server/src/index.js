@@ -83,7 +83,7 @@ app.use('/uploads', express.static(uploadsDir));
 
 registerUserRoutes(app, authMiddleware);
 registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware, webAppUrl);
-registerChatRoutes(app, authMiddleware, bot, webAppUrl);
+registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload);
 registerPointRoutes(app);
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');

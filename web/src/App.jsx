@@ -79,26 +79,29 @@ export default function App() {
     return () => clearInterval(t);
   }, [user?.profile_complete, user?.id, tab]);
 
-  const openChat = useCallback((wantId) => {
-    if (wantId) setChatWantId(wantId);
-    setTab('chat');
-  }, []);
-
   const scrollPageTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    document.getElementById('feed-top')?.scrollIntoView({ behavior: 'auto', block: 'start' });
     window.Telegram?.WebApp?.scrollTo?.(0, 0);
   }, []);
 
-  const goToFeed = useCallback(() => {
-    setTab('feed');
+  const changeTab = useCallback((nextTab) => {
+    setTab(nextTab);
     requestAnimationFrame(() => {
       scrollPageTop();
       requestAnimationFrame(scrollPageTop);
     });
   }, [scrollPageTop]);
+
+  const openChat = useCallback((wantId) => {
+    if (wantId) setChatWantId(wantId);
+    changeTab('chat');
+  }, [changeTab]);
+
+  const goToFeed = useCallback(() => {
+    changeTab('feed');
+  }, [changeTab]);
 
   return (
     <div className="relative min-h-screen pb-28 overflow-x-hidden">
@@ -112,7 +115,7 @@ export default function App() {
             <Sticker name="logo" size={46} />
             <div>
               <h1>
-                <BrandMark size="md" className="brand-mark--animate" />
+                <BrandMark size="md" animate />
               </h1>
               <p className="type-kicker mt-0.5">Для каждой вещи – свой путь. Выбери его сам!</p>
             </div>
@@ -169,7 +172,7 @@ export default function App() {
               <FeedTab
                 user={user}
                 onRefresh={refreshUser}
-                onNeedProfile={() => setTab('profile')}
+                onNeedProfile={() => changeTab('profile')}
                 onOpenChat={openChat}
               />
             )}
@@ -180,19 +183,20 @@ export default function App() {
                 initialWantId={chatWantId}
                 onInitialWantHandled={() => setChatWantId(null)}
                 onUnreadChange={setChatUnread}
-                onNeedProfile={() => setTab('profile')}
+                onNeedProfile={() => changeTab('profile')}
+                onGoToFeed={goToFeed}
               />
             )}
             {tab === 'profile' && (
               <ProfileTab user={user} onRefresh={refreshUser} onGoToFeed={goToFeed} />
             )}
-            {tab === 'info' && <InfoTab />}
+            {tab === 'info' && <InfoTab onChangeTab={changeTab} />}
           </>
         )}
       </main>
 
       {!loadError && !(loading && !user) && (
-        <BottomNav active={tab} onChange={setTab} chatUnread={chatUnread} />
+        <BottomNav active={tab} onChange={changeTab} chatUnread={chatUnread} />
       )}
     </div>
   );

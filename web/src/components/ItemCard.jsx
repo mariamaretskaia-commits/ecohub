@@ -15,6 +15,7 @@ export default function ItemCard({
   onOpenChat,
   ownerMode = false,
   favoriteMode = false,
+  onFavoriteChange,
 }) {
   const [wanting, setWanting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -75,8 +76,10 @@ export default function ItemCard({
     setFavorited(!prev);
     try {
       const result = await api.toggleFavorite(item.id);
-      setFavorited(Boolean(result.favorited));
-      onUpdate?.();
+      const next = Boolean(result.favorited);
+      setFavorited(next);
+      onFavoriteChange?.(item.id, next);
+      if (favoriteMode) onUpdate?.();
     } catch (err) {
       setFavorited(prev);
       tg.showAlert(err.message);

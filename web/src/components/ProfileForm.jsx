@@ -49,10 +49,7 @@ export default function ProfileForm({ user, onSaved, intro, compact = false, onC
           <Sticker name="person" size={72} className="mx-auto" alt="профиль" />
           <h2 className="type-brand mt-2">Ваш профиль</h2>
           <p className="type-body mt-2">
-            Укажите, как к Вам обращаться. Это имя будут видеть остальные пользователи.
-          </p>
-          <p className="type-meta mt-2">
-            Профиль привязан к этому Telegram: один аккаунт – один профиль в EcoHub.
+            Укажите, как к Вам обращаться. Это имя увидят другие пользователи.
           </p>
         </div>
       )}

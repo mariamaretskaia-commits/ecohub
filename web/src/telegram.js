@@ -20,6 +20,21 @@ export const tg = {
     if (app?.showAlert) app.showAlert(message);
     else window.alert(message);
   },
+  showConfirm(message) {
+    return new Promise((resolve) => {
+      const app = getWebApp();
+      const inTelegram = Boolean(app?.initData);
+      if (inTelegram && typeof app.showConfirm === 'function') {
+        try {
+          app.showConfirm(String(message), (ok) => resolve(Boolean(ok)));
+          return;
+        } catch {
+          /* fall through */
+        }
+      }
+      resolve(window.confirm(String(message)));
+    });
+  },
   openLink(url) {
     const app = getWebApp();
     if (app?.openLink) app.openLink(url);

@@ -1,7 +1,19 @@
 import Sticker from './Sticker';
 import BrandMark from './BrandMark';
 
-export default function InfoTab() {
+function LinkWord({ children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="font-extrabold text-mint-700 underline underline-offset-2 decoration-mint-300 active:opacity-70"
+    >
+      {children}
+    </button>
+  );
+}
+
+export default function InfoTab({ onChangeTab }) {
   return (
     <div className="px-4 pt-2 pb-8 space-y-4">
       <div className="card p-5 bg-gradient-to-br from-mint-100 to-sun-50">
@@ -10,31 +22,55 @@ export default function InfoTab() {
           <BrandMark size="lg" />
         </h2>
         <p className="type-body text-center mt-2">
-          Передайте вещь человеку даром. Если так нельзя – пункты сортировки и контейнеры на карте.
+          – сервис, где ненужные вещи отдают{' '}
+          <LinkWord onClick={() => onChangeTab?.('feed')}>даром</LinkWord>
+          {' '}другим людям.
+          <br />
+          А на{' '}
+          <LinkWord onClick={() => onChangeTab?.('map')}>карте</LinkWord>
+          {' '}– пункты приёма и переработки.
         </p>
       </div>
 
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
-          <Sticker name="phone" size={32} />
-          <h3 className="type-title">Как связаться?</h3>
+          <Sticker name="share" size={32} />
+          <h3 className="type-title">Как отдать или взять вещь</h3>
         </div>
         <ul className="space-y-3">
           <Thesis
-            title="Выложить вещь"
-            text="Профиль → Мои объявления → «+ Добавить». Объявление видят все, кто открыл EcoHub."
+            title="1. Отдать"
+            text={(
+              <>
+                Откройте{' '}
+                <LinkWord onClick={() => onChangeTab?.('profile')}>«Профиль»</LinkWord>
+                {' '}→ «+ Добавить». Объявление появится в{' '}
+                <LinkWord onClick={() => onChangeTab?.('feed')}>«Даром»</LinkWord>
+                .
+              </>
+            )}
           />
           <Thesis
-            title="Хочу взять"
-            text="Откроется переписка в разделе «Чат» в приложении. Личные профили Telegram не показываем."
+            title="2. Взять"
+            text={(
+              <>
+                В{' '}
+                <LinkWord onClick={() => onChangeTab?.('feed')}>«Даром»</LinkWord>
+                {' '}нажмите «Хочу взять» – откроется{' '}
+                <LinkWord onClick={() => onChangeTab?.('chat')}>«Чат»</LinkWord>
+                .
+              </>
+            )}
           />
           <Thesis
-            title="Уведомления"
-            text="Если вы не в приложении, бот напомнит о новых сообщениях и предложит открыть раздел «Чат»."
-          />
-          <Thesis
-            title="Оба жмут /start"
-            text="Бот доставляет уведомления только тем, кто хотя бы раз открыл @EcoHubBY_bot."
+            title="3. Договориться"
+            text={(
+              <>
+                Пишите друг другу в{' '}
+                <LinkWord onClick={() => onChangeTab?.('chat')}>«Чате»</LinkWord>
+                . Если вас нет в приложении, бот @EcoHubBY_bot напомнит о сообщении.
+              </>
+            )}
           />
         </ul>
       </div>
@@ -42,47 +78,29 @@ export default function InfoTab() {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <Sticker name="pin" size={32} />
-          <h3 className="type-title">Что на карте?</h3>
+          <h3 className="type-title">Что на карте</h3>
         </div>
+        <p className="type-body mb-3">
+          Выберите, что сдаёте – увидите подходящие пункты. Типы на карте:
+        </p>
         <ul className="space-y-3">
           <Thesis
-            title="Касса"
-            text="Сырьё принимает сотрудник, оплата по прайсу на месте."
+            title="Пункт переработки"
+            text="Принимают сырьё и платят по прайсу."
           />
           <Thesis
-            title="Приёмка"
-            text="Вещи принимают как благотворительность, в часы работы пункта."
+            title="Центр помощи"
+            text="Принимают вещи для нуждающихся бесплатно, в часы работы."
           />
           <Thesis
             title="Контейнер"
-            text="Железный бак: вещи можно пожертвовать самостоятельно."
-          />
-          <Thesis
-            title="Звонок в один тап"
-            text="Номер открывается в наборе. Сайт – рядом."
+            text="Можно положить вещи самостоятельно в любое время."
           />
         </ul>
-      </div>
-
-      <div className="card p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Sticker name="recycle" size={32} />
-          <h3 className="type-title">Зачем это нужно?</h3>
-        </div>
-        <ul className="space-y-3">
-          <Thesis
-            title="Получить деньги за сырьё"
-            text="Партнёры платят за макулатуру, металл, технику и АКБ."
-          />
-          <Thesis
-            title="Помочь людям"
-            text="Отдайте лишнее даром – заберут те, кому нужно."
-          />
-          <Thesis
-            title="Сортировать легко"
-            text="Когда ясно, куда нести бумагу, технику или одежду, сдача по категориям становится простой и бережёт природу."
-          />
-        </ul>
+        <p className="type-meta mt-3">
+          Открыть{' '}
+          <LinkWord onClick={() => onChangeTab?.('map')}>«Карту»</LinkWord>
+        </p>
       </div>
 
       <div className="text-center type-meta py-3">

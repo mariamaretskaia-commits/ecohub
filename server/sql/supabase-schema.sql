@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS recycling_points (
   short_address TEXT,
   accepts TEXT,
   last_synced TIMESTAMPTZ,
+  source TEXT,
   oblast TEXT DEFAULT 'Гродненская область',
   settlement TEXT DEFAULT 'Гродно',
   access_mode TEXT DEFAULT 'counter'
@@ -114,6 +115,7 @@ CREATE INDEX IF NOT EXISTS chat_messages_want_id_idx ON chat_messages(want_id);
 
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS photo_url TEXT;
 
 ALTER TABLE item_wants ADD COLUMN IF NOT EXISTS owner_last_read_at TIMESTAMPTZ;
 ALTER TABLE item_wants ADD COLUMN IF NOT EXISTS buyer_last_read_at TIMESTAMPTZ;

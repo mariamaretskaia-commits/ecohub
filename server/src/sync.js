@@ -209,5 +209,6 @@ export async function syncOfficialPoints() {
 export function startPointSync() {
   const runSync = () => syncOfficialPoints().catch((err) => console.warn('Point sync failed:', err.message));
   setTimeout(runSync, 4000);
-  setInterval(runSync, 6 * 60 * 60 * 1000);
+  // Daily + a bit more often so hours/phones stay fresh without manual work
+  setInterval(runSync, 24 * 60 * 60 * 1000);
 }

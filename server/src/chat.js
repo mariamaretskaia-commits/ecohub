@@ -1,5 +1,6 @@
 import { get, all, run } from './db.js';
 import { findOrCreateUser, displayName, isProfileComplete } from './users.js';
+import { storeItemPhotos } from './storage.js';
 import { pushOpenButtons } from '../../bot/src/createBot.js';
 
 const CHAT_NOTIFY =
@@ -85,6 +86,7 @@ function enrichMessage(message, viewerId, peerReadAt) {
   return {
     ...message,
     body: deleted ? null : message.body,
+    photo_url: deleted ? null : message.photo_url,
     is_deleted: deleted,
     read_by_peer: isReadByPeer(message, peerReadAt, viewerId),
   };
@@ -171,10 +173,11 @@ export async function ensureWantOpeningMessage({ wantId, buyerId }) {
   return true;
 }
 
-export async function sendChatMessage({ wantId, sender, body, bot, webAppUrl }) {
+export async function sendChatMessage({ wantId, sender, body, photoUrl, bot, webAppUrl }) {
   const trimmed = String(body || '').trim();
-  if (!trimmed) {
-    const err = new Error('Введите сообщение');
+  const photo = photoUrl ? String(photoUrl) : '';
+  if (!trimmed && !photo) {
+    const err = new Error('Введите сообщение или добавьте фото');
     err.status = 400;
     throw err;
   }
@@ -197,10 +200,11 @@ export async function sendChatMessage({ wantId, sender, body, bot, webAppUrl }) 
   }
 
   const result = await run(
-    'INSERT INTO chat_messages (want_id, sender_id, body) VALUES (?, ?, ?)',
+    'INSERT INTO chat_messages (want_id, sender_id, body, photo_url) VALUES (?, ?, ?, ?)',
     want.id,
     sender.id,
-    trimmed,
+    trimmed || '',
+    photo || null,
   );
 
   const message = await get(`
@@ -222,7 +226,7 @@ export async function sendChatMessage({ wantId, sender, body, bot, webAppUrl }) 
   return enrichMessage(message, sender.id, peerLastReadAt(want, sender.id));
 }
 
-export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
+export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) {
   app.get('/api/chat/unread', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
@@ -271,7 +275,12 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
           item_wants.buyer_id,
           ${PEER_NAME_SQL},
           (
-            SELECT body FROM chat_messages
+            SELECT CASE
+              WHEN body IS NOT NULL AND TRIM(body) != '' THEN body
+              WHEN photo_url IS NOT NULL AND photo_url != '' THEN 'Фото'
+              ELSE ''
+            END
+            FROM chat_messages
             WHERE want_id = item_wants.id AND deleted_at IS NULL
             ORDER BY created_at DESC LIMIT 1
           ) AS last_body,
@@ -310,6 +319,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
         ...t,
         unread_count: Number(t.unread_count || 0),
         closed: t.item_status !== 'active',
+        role: Number(t.owner_id) === Number(user.id) ? 'owner' : 'buyer',
       })));
     } catch (err) {
       sendError(res, err);
@@ -351,6 +361,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
         item_id: want.item_id,
         title: want.title,
         closed: want.item_status !== 'active',
+        role: isBuyer ? 'buyer' : 'owner',
         peer_name: displayName(peer),
         peer_last_read_at: peerRead,
         messages: messages.map((m) => enrichMessage(m, user.id, peerRead)),
@@ -360,24 +371,36 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
     }
   });
 
-  app.post('/api/chat/threads/:wantId/messages', authMiddleware, async (req, res) => {
-    try {
-      const user = await findOrCreateUser(req.telegramUser);
-      if (!requireCompleteProfile(user, res)) return;
+  app.post(
+    '/api/chat/threads/:wantId/messages',
+    authMiddleware,
+    upload ? upload.single('photo') : (_req, _res, next) => next(),
+    async (req, res) => {
+      try {
+        const user = await findOrCreateUser(req.telegramUser);
+        if (!requireCompleteProfile(user, res)) return;
 
-      const message = await sendChatMessage({
-        wantId: req.params.wantId,
-        sender: user,
-        body: req.body?.body,
-        bot,
-        webAppUrl,
-      });
+        let photoUrl = '';
+        if (req.file) {
+          const urls = await storeItemPhotos([req.file]);
+          photoUrl = urls[0] || '';
+        }
 
-      res.status(201).json(message);
-    } catch (err) {
-      sendError(res, err);
-    }
-  });
+        const message = await sendChatMessage({
+          wantId: req.params.wantId,
+          sender: user,
+          body: req.body?.body,
+          photoUrl,
+          bot,
+          webAppUrl,
+        });
+
+        res.status(201).json(message);
+      } catch (err) {
+        sendError(res, err);
+      }
+    },
+  );
 
   app.post('/api/chat/threads/:wantId/read', authMiddleware, async (req, res) => {
     try {
@@ -432,7 +455,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
 
       await run(`
         UPDATE chat_messages
-        SET deleted_at = datetime('now'), body = ''
+        SET deleted_at = datetime('now'), body = '', photo_url = NULL
         WHERE id = ?
       `, row.id);
 

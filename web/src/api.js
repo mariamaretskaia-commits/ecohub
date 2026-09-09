@@ -4,7 +4,7 @@ function isTelegramWebApp() {
   return Boolean(window.Telegram?.WebApp?.initData);
 }
 
-function apiUrls(path) {
+export function apiUrls(path) {
   if (API_BASE) return [`${API_BASE}${path}`];
   if (!path.startsWith('/api')) return [path];
 
@@ -69,7 +69,8 @@ async function wakeServer() {
 
 /** Retries help when a free host is waking from sleep (cold start). */
 async function request(path, options = {}) {
-  if (path.startsWith('/api') && !options.skipWake) {
+  const { skipWake, ...fetchOpts } = options;
+  if (path.startsWith('/api') && !skipWake) {
     await wakeServer();
   }
 
@@ -83,11 +84,11 @@ async function request(path, options = {}) {
     for (const url of urls) {
       try {
         const res = await fetch(url, {
-          ...options,
+          ...fetchOpts,
           cache: 'no-store',
           headers: {
             ...getHeaders(),
-            ...options.headers,
+            ...fetchOpts.headers,
           },
         });
         if (!res.ok) {
@@ -174,11 +175,18 @@ export const api = {
   getChatUnread: () => request('/api/chat/unread'),
   getChatThreads: () => request('/api/chat/threads'),
   getChatMessages: (wantId) => request(`/api/chat/threads/${wantId}/messages`),
-  sendChatMessage: (wantId, body) =>
-    request(`/api/chat/threads/${wantId}/messages`, {
+  sendChatMessage: (wantId, { body = '', file } = {}) => {
+    if (file) {
+      const formData = new FormData();
+      if (body) formData.append('body', body);
+      formData.append('photo', file, file.name || 'photo.jpg');
+      return uploadItem(`/api/chat/threads/${wantId}/messages`, 'POST', formData);
+    }
+    return request(`/api/chat/threads/${wantId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ body }),
-    }),
+    });
+  },
   markChatRead: (wantId) =>
     request(`/api/chat/threads/${wantId}/read`, { method: 'POST' }),
   editChatMessage: (messageId, body) =>

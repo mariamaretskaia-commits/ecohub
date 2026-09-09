@@ -106,11 +106,10 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
       <div className="card p-5 text-center bg-gradient-to-b from-white to-mint-50">
         <Sticker name="person" size={84} className="mx-auto" alt="профиль" />
         <h2 className="type-brand leading-tight mt-2">{user.display_name}</h2>
-        <p className="type-meta mt-2">
-          Профиль привязан к этому Telegram. Другой аккаунт – другой профиль.
-        </p>
-        <p className="type-meta mt-1">
-          Уведомления об откликах – в чате @EcoHubBY_bot. Включите звук в настройках чата.
+        <p className="type-body mt-2">
+          Здесь ваши объявления и избранное.
+          <br />
+          Отдать вещь – через «+ Добавить».
         </p>
         {!editingName ? (
           <button
@@ -169,7 +168,10 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
           ) : myItems.length === 0 ? (
             <div className="card p-6 text-center">
               <Sticker name="listing" size={64} className="mx-auto mb-2" alt="объявление" />
-              <p className="type-body mb-4">Пока нет активных объявлений.</p>
+              <p className="type-title">Пока пусто</p>
+              <p className="type-body mt-1 mb-4">
+                Добавьте объявление – его увидят в разделе «Даром».
+              </p>
               <button
                 type="button"
                 onClick={() => setCreating(true)}

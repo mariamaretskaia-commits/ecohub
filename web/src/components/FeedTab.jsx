@@ -12,8 +12,8 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
   const [search, setSearch] = useState('');
   const [searchQ, setSearchQ] = useState('');
 
-  const loadItems = async () => {
-    setLoading(true);
+  const loadItems = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const params = {};
       if (filterLocation.oblast) params.oblast = filterLocation.oblast;
@@ -26,7 +26,13 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
     } catch (e) {
       console.error(e);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
+  };
+
+  const patchFavorite = (itemId, favorited) => {
+    setItems((prev) => prev.map((row) => (
+      Number(row.id) === Number(itemId) ? { ...row, is_favorited: favorited } : row
+    )));
   };
 
   useEffect(() => {
@@ -39,9 +45,6 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
   }, [filterLocation.oblast, filterLocation.settlement, filterLocation.district, filterCategory, searchQ]);
 
   const emptyTitle = searchQ ? 'Ничего не нашли' : 'Пока пусто';
-  const emptyHint = searchQ
-    ? 'Попробуйте другое слово в описании'
-    : 'Свои объявления добавляйте в Профиле → Мои объявления.';
 
   return (
     <div id="feed-top" className="px-4 pt-2">
@@ -49,9 +52,10 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
         <div className="flex items-center gap-3">
           <Sticker name="share" size={64} alt="передача вещи" />
           <div>
-            <p className="type-kicker">Лента объявлений</p>
-            <h2 className="type-brand mt-1 leading-tight">Предложения от пользователей</h2>
-            <p className="type-meta mt-1.5">Только даром. Сортировка сырья и контейнеры – в разделе «Переработка».</p>
+            <h2 className="type-brand leading-tight">Даром</h2>
+            <p className="type-body mt-1.5">
+              Вещи отдают бесплатно. Нажмите «Хочу взять» – откроется чат.
+            </p>
           </div>
         </div>
       </div>
@@ -98,7 +102,23 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
         <div className="card p-8 text-center">
           <Sticker name="listing" size={88} className="mx-auto mb-3" alt="объявление" />
           <p className="type-title">{emptyTitle}</p>
-          <p className="type-body mt-1">{emptyHint}</p>
+          <p className="type-body mt-1">
+            {searchQ ? (
+              'Попробуйте другое слово в описании.'
+            ) : (
+              <>
+                Хотите отдать вещь? Добавьте объявление в{' '}
+                <button
+                  type="button"
+                  onClick={() => onNeedProfile?.()}
+                  className="font-extrabold text-mint-700 underline underline-offset-2 decoration-mint-300 active:opacity-70"
+                >
+                  «Мои объявления»
+                </button>
+                .
+              </>
+            )}
+          </p>
         </div>
       ) : (
         <div className="space-y-4 pb-6">
@@ -111,6 +131,7 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
                 loadItems();
                 onRefresh?.();
               }}
+              onFavoriteChange={patchFavorite}
               onNeedProfile={onNeedProfile}
               onOpenChat={onOpenChat}
             />

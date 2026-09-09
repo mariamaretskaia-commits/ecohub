@@ -42,6 +42,21 @@ export default function PhotoLightbox({ photos, index, onClose, onIndex }) {
     img.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${scale})`;
   };
 
+  const clampPan = () => {
+    const s = state.current;
+    const stage = stageRef.current;
+    if (!stage || s.scale <= 1.02) {
+      s.x = 0;
+      s.y = 0;
+      return;
+    }
+    const { width, height } = stage.getBoundingClientRect();
+    const maxX = Math.max(0, (width * (s.scale - 1)) / 2);
+    const maxY = Math.max(0, (height * (s.scale - 1)) / 2);
+    s.x = Math.min(maxX, Math.max(-maxX, s.x));
+    s.y = Math.min(maxY, Math.max(-maxY, s.y));
+  };
+
   const clamp = () => {
     const s = state.current;
     s.scale = Math.min(4, Math.max(1, s.scale));
@@ -49,6 +64,8 @@ export default function PhotoLightbox({ photos, index, onClose, onIndex }) {
       s.scale = 1;
       s.x = 0;
       s.y = 0;
+    } else {
+      clampPan();
     }
     paint();
   };
@@ -145,6 +162,7 @@ export default function PhotoLightbox({ photos, index, onClose, onIndex }) {
         if (Math.abs(dx) + Math.abs(dy) > 6) s.moved = true;
         s.x = s.startX + dx;
         s.y = s.startY + dy;
+        clampPan();
         paint();
       }
     };
@@ -204,66 +222,116 @@ export default function PhotoLightbox({ photos, index, onClose, onIndex }) {
         className="relative flex max-h-[90vh] w-full max-w-[420px] flex-col items-center gap-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          ref={stageRef}
-          className="relative w-full overflow-hidden rounded-2xl bg-black shadow-float"
-          style={{
-            aspectRatio: '3 / 4',
-            maxHeight: '78vh',
-            touchAction: 'none',
-            WebkitUserSelect: 'none',
-            userSelect: 'none',
-          }}
-          onDoubleClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleZoom();
-          }}
-          onWheel={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12);
-          }}
-          onMouseDown={(e) => {
-            if (e.button !== 0) return;
-            const s = state.current;
-            if (s.scale <= 1.05) return;
-            s.mode = 'mouse';
-            s.moved = false;
-            s.pointerX = e.clientX;
-            s.pointerY = e.clientY;
-            s.startX = s.x;
-            s.startY = s.y;
-            const onMove = (ev) => {
-              const dx = ev.clientX - s.pointerX;
-              const dy = ev.clientY - s.pointerY;
-              if (Math.abs(dx) + Math.abs(dy) > 4) s.moved = true;
-              s.x = s.startX + dx;
-              s.y = s.startY + dy;
-              paint();
-            };
-            const onUp = () => {
-              s.mode = null;
-              window.removeEventListener('mousemove', onMove);
-              window.removeEventListener('mouseup', onUp);
-            };
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onUp);
-          }}
-        >
-          <img
-            ref={imgRef}
-            src={src}
-            alt=""
-            draggable={false}
-            className="h-full w-full object-cover"
-            style={{
-              transform: 'translate3d(0,0,0) scale(1)',
-              transformOrigin: 'center center',
-              willChange: 'transform',
-              pointerEvents: 'none',
-            }}
-          />
+        <div className="relative flex w-full items-center gap-2">
+          {list.length > 1 ? (
+            <button
+              type="button"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-lg font-black text-ink shadow-soft"
+              aria-label="Предыдущее фото"
+              onClick={(e) => {
+                e.stopPropagation();
+                onIndex?.((i - 1 + list.length) % list.length);
+              }}
+            >
+              ‹
+            </button>
+          ) : (
+            <span className="w-10 shrink-0" aria-hidden />
+          )}
+
+          <div className="relative min-w-0 flex-1">
+            <button
+              type="button"
+              className="absolute -top-3 -right-1 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white text-xl font-black text-ink shadow-soft"
+              aria-label="Закрыть"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose?.();
+              }}
+            >
+              ×
+            </button>
+
+            <div
+              ref={stageRef}
+              className="relative w-full overflow-hidden rounded-2xl bg-black shadow-float"
+              style={{
+                aspectRatio: '3 / 4',
+                maxHeight: '78vh',
+                touchAction: 'none',
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
+              }}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleZoom();
+              }}
+              onWheel={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12);
+              }}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return;
+                const s = state.current;
+                if (s.scale <= 1.05) return;
+                s.mode = 'mouse';
+                s.moved = false;
+                s.pointerX = e.clientX;
+                s.pointerY = e.clientY;
+                s.startX = s.x;
+                s.startY = s.y;
+                const onMove = (ev) => {
+                  const dx = ev.clientX - s.pointerX;
+                  const dy = ev.clientY - s.pointerY;
+                  if (Math.abs(dx) + Math.abs(dy) > 4) s.moved = true;
+                  s.x = s.startX + dx;
+                  s.y = s.startY + dy;
+                  clampPan();
+                  paint();
+                };
+                const onUp = () => {
+                  s.mode = null;
+                  clamp();
+                  window.removeEventListener('mousemove', onMove);
+                  window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+              }}
+            >
+              <img
+                ref={imgRef}
+                src={src}
+                alt=""
+                draggable={false}
+                className="h-full w-full object-cover"
+                style={{
+                  transform: 'translate3d(0,0,0) scale(1)',
+                  transformOrigin: 'center center',
+                  willChange: 'transform',
+                  pointerEvents: 'none',
+                }}
+              />
+            </div>
+          </div>
+
+          {list.length > 1 ? (
+            <button
+              type="button"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-lg font-black text-ink shadow-soft"
+              aria-label="Следующее фото"
+              onClick={(e) => {
+                e.stopPropagation();
+                onIndex?.((i + 1) % list.length);
+              }}
+            >
+              ›
+            </button>
+          ) : (
+            <span className="w-10 shrink-0" aria-hidden />
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -280,16 +348,6 @@ export default function PhotoLightbox({ photos, index, onClose, onIndex }) {
           </button>
           <button
             type="button"
-            className="h-11 rounded-full bg-white px-4 text-sm font-extrabold text-ink shadow-soft"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleZoom();
-            }}
-          >
-            Зум
-          </button>
-          <button
-            type="button"
             className="h-11 w-11 rounded-full bg-white text-xl font-black text-ink shadow-soft"
             aria-label="Увеличить"
             onClick={(e) => {
@@ -300,27 +358,6 @@ export default function PhotoLightbox({ photos, index, onClose, onIndex }) {
             +
           </button>
         </div>
-
-        {list.length > 1 && (
-          <div className="flex justify-center gap-2">
-            {list.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                aria-label={`Фото ${idx + 1}`}
-                className={`h-2.5 rounded-full ${idx === i ? 'w-6 bg-white' : 'w-2.5 bg-white/55'}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onIndex?.(idx);
-                }}
-              />
-            ))}
-          </div>
-        )}
-
-        <p className="text-center text-xs font-bold text-white/70">
-          Два пальца или +/− · тап вне фото – закрыть
-        </p>
       </div>
     </div>,
     document.body,

@@ -55,17 +55,22 @@ export function scorePoint(point, type = '') {
   return score;
 }
 
-export function relevanceHint(point, type = '') {
+export function relevanceHint(point, typeOrTypes = '') {
+  const types = Array.isArray(typeOrTypes)
+    ? typeOrTypes
+    : (typeOrTypes ? [typeOrTypes] : []);
+  const type = types[0] || '';
   const text = blob(point);
   const hours = String(point.hours || '').toLowerCase();
   if (/временно не работает/.test(text)) return 'Сейчас не работает';
 
   const bits = [];
+  if (types.length > 1) bits.push('всё выбранное в одном месте');
   if (point.access_mode === 'box') bits.push('контейнер');
-  else if (point.access_mode === 'desk') bits.push('приёмка');
+  else if (point.access_mode === 'desk') bits.push('центр помощи');
   const money = parsePrice(text);
   if (money) bits.push(`${String(money).replace('.', ',')} BYN/кг`);
-  else if (type !== 'clothing' && /прайс|прейскурант/.test(text)) bits.push('Платят по прайсу');
+  else if (!types.includes('clothing') && /прайс|прейскурант/.test(text)) bits.push('Платят по прайсу');
   if (/главный пункт|главный цех/.test(text)) bits.push('главный пункт');
   if (/выездн|заявки на вывоз/.test(text)) bits.push('есть вывоз');
   if (/круглосуточн/.test(text)) bits.push('круглосуточно');
@@ -75,9 +80,18 @@ export function relevanceHint(point, type = '') {
   return bits.slice(0, 2).join(' · ');
 }
 
-export function sortByRelevance(points, type = '') {
+export function sortByRelevance(points, typeOrTypes = '') {
+  const types = Array.isArray(typeOrTypes)
+    ? typeOrTypes
+    : (typeOrTypes ? [typeOrTypes] : []);
   return [...points].sort((a, b) => {
-    const diff = scorePoint(b, type) - scorePoint(a, type);
+    const scoreA = types.length
+      ? types.reduce((sum, t) => sum + scorePoint(a, t), 0) / types.length
+      : scorePoint(a, '');
+    const scoreB = types.length
+      ? types.reduce((sum, t) => sum + scorePoint(b, t), 0) / types.length
+      : scorePoint(b, '');
+    const diff = scoreB - scoreA;
     if (diff) return diff;
     return String(a.short_address || a.address).localeCompare(String(b.short_address || b.address), 'ru');
   });

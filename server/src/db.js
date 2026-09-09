@@ -158,7 +158,8 @@ function ensureSqliteSchema(db) {
   for (const [col, def] of [
     ['district', 'TEXT'], ['organization', 'TEXT'], ['transit', 'TEXT'],
     ['source_key', 'TEXT'], ['short_address', 'TEXT'], ['accepts', 'TEXT'],
-    ['last_synced', 'TEXT'], ['oblast', "TEXT DEFAULT 'Гродненская область'"],
+    ['last_synced', 'TEXT'], ['source', 'TEXT'],
+    ['oblast', "TEXT DEFAULT 'Гродненская область'"],
     ['settlement', "TEXT DEFAULT 'Гродно'"], ['access_mode', "TEXT DEFAULT 'counter'"],
   ]) {
     if (!pointCols.includes(col)) db.exec(`ALTER TABLE recycling_points ADD COLUMN ${col} ${def}`);
@@ -194,6 +195,7 @@ function ensureSqliteSchema(db) {
   for (const [col, def] of [
     ['edited_at', 'TEXT'],
     ['deleted_at', 'TEXT'],
+    ['photo_url', 'TEXT'],
   ]) {
     if (!msgCols.includes(col)) db.exec(`ALTER TABLE chat_messages ADD COLUMN ${col} ${def}`);
   }

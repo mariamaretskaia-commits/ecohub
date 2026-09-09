@@ -1,5 +1,5 @@
 const STICKERS = {
-  logo: '/stickers/sticker-logo.png?v=1',
+  logo: '/stickers/sticker-logo.png?v=13',
   bin: '/stickers/sticker-bin.png?v=2',
   coin: '/stickers/sticker-coin.png?v=2',
   recycle: '/stickers/sticker-recycle.png?v=2',
@@ -16,6 +16,7 @@ const STICKERS = {
   metal: '/stickers/sticker-metal.png?v=2',
   clock: '/stickers/sticker-clock.png?v=1',
   phone: '/stickers/sticker-phone.png?v=1',
+  chat: '/stickers/sticker-chat.png?v=1',
   globe: '/stickers/sticker-globe.png?v=1',
   bus: '/stickers/sticker-bus.png?v=1',
   truck: '/stickers/sticker-truck.png?v=1',

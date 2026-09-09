@@ -15,3 +15,5 @@ logs/
 tmp-eco-docx/
 ecohub-oracle.zip
 logs/
+__pycache__/
+*.pyc

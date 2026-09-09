@@ -454,6 +454,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
   });
 
   app.post('/api/items/:id/favorite', authMiddleware, async (req, res) => {
+    // Избранное – приватно для пользователя. Владельцу объявления уведомления не отправляем.
     try {
       const user = await findOrCreateUser(req.telegramUser);
       if (!requireCompleteProfile(user, res)) return;

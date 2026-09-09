@@ -9,8 +9,7 @@ import PointDetail from './PointDetail';
 import Sticker, { STICKERS } from './Sticker';
 import { sortByRelevance, relevanceHint } from '../point-rank';
 import { accessInfo } from '../point-access';
-import { MAP_TILE, USE_MAPTILER_VECTOR } from '../map-tiles';
-import MapTilerBasemap from './MapTilerBasemap';
+import { MAP_TILE } from '../map-tiles';
 
 const GRODNO_BOUNDS = [
   [53.60, 23.71],
@@ -32,6 +31,11 @@ function acceptsType(point, type) {
   if (!type) return true;
   if (point.type === type) return true;
   return String(point.accepts || '').split(',').map((item) => item.trim()).includes(type);
+}
+
+function acceptsAllTypes(point, types) {
+  if (!types?.length) return true;
+  return types.every((type) => acceptsType(point, type));
 }
 
 function createIcon(point, active) {
@@ -138,7 +142,7 @@ function MapFly({ loc, focusPoint }) {
 export default function MapTab() {
   const [allPoints, setAllPoints] = useState([]);
   const [loadError, setLoadError] = useState('');
-  const [filterType, setFilterType] = useState('');
+  const [filterTypes, setFilterTypes] = useState([]);
   const [loc, setLoc] = useState({
     oblast: 'Гродненская область',
     settlement: 'Гродно',
@@ -197,18 +201,18 @@ export default function MapTab() {
       if (loc.oblast && oblast !== loc.oblast) return false;
       if (loc.settlement && settlement !== loc.settlement) return false;
       if (loc.districts?.length && !loc.districts.includes(point.district)) return false;
-      if (!acceptsType(point, filterType)) return false;
+      if (!acceptsAllTypes(point, filterTypes)) return false;
       return Number(point.lat) && Number(point.lng);
     });
-    return sortByRelevance(filtered, filterType);
-  }, [allPoints, loc, filterType]);
+    return sortByRelevance(filtered, filterTypes);
+  }, [allPoints, loc, filterTypes]);
 
   const showGrodnoDistricts = loc.settlement === 'Гродно';
-  const needTypeFirst = showGrodnoDistricts && !filterType;
+  const needTypeFirst = showGrodnoDistricts && filterTypes.length === 0;
   const hideMarkersForCountryZoom = !loc.settlement && zoom < 9;
   const mapPoints = needTypeFirst || hideMarkersForCountryZoom ? [] : points;
   const showOblasts = zoom < 10;
-  const showCities = zoom >= 7 && zoom < 12;
+  const showCities = zoom >= 7 && zoom < 13;
   const districtPins = showGrodnoDistricts && zoom >= 11 && needTypeFirst
     ? (CITY_DISTRICT_COORDS.Гродно || {})
     : {};
@@ -226,6 +230,13 @@ export default function MapTab() {
       ...next,
       districts: next.districts ?? prev.districts ?? [],
     }));
+  };
+
+  const toggleFilterType = (key) => {
+    setFocusPoint(null);
+    setFilterTypes((prev) => (
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+    ));
   };
 
   if (selectedPoint) {
@@ -262,29 +273,34 @@ export default function MapTab() {
       </div>
 
       <div className="px-4 pt-1">
-        <p className="type-label">Что хотите сдать или взять</p>
+        <p className="type-label">Что хотите сдать?</p>
+        <p className="type-meta mt-0.5">Можно выбрать несколько – покажем пункты, где принимают всё сразу</p>
       </div>
       <div className="flex flex-wrap gap-2 px-4 py-2">
         {!showGrodnoDistricts && (
           <button
             type="button"
-            onClick={() => { setFilterType(''); setFocusPoint(null); }}
-            className={`filter-chip ${!filterType ? 'filter-chip-active' : 'filter-chip-inactive'}`}
+            onClick={() => { setFilterTypes([]); setFocusPoint(null); }}
+            className={`filter-chip ${filterTypes.length === 0 ? 'filter-chip-active' : 'filter-chip-inactive'}`}
           >
             Все типы
           </button>
         )}
-        {Object.entries(POINT_TYPES).map(([key, val]) => (
-          <button
-            type="button"
-            key={key}
-            onClick={() => { setFilterType(filterType === key ? '' : key); setFocusPoint(null); }}
-            className={`filter-chip ${filterType === key ? 'filter-chip-active' : 'filter-chip-inactive'}`}
-          >
-            <Sticker name={val.sticker} size={20} className="shrink-0 !drop-shadow-none" />
-            <span className="leading-none">{val.label}</span>
-          </button>
-        ))}
+        {Object.entries(POINT_TYPES).map(([key, val]) => {
+          const active = filterTypes.includes(key);
+          return (
+            <button
+              type="button"
+              key={key}
+              onClick={() => toggleFilterType(key)}
+              aria-pressed={active}
+              className={`filter-chip ${active ? 'filter-chip-active' : 'filter-chip-inactive'}`}
+            >
+              <Sticker name={val.sticker} size={20} className="shrink-0 !drop-shadow-none" />
+              <span className="leading-none">{val.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="h-[min(58vh,520px)] min-h-[360px] mx-4 rounded-[1.75rem] overflow-hidden shadow-card border-4 border-white">
@@ -306,23 +322,19 @@ export default function MapTab() {
             preferCanvas
             fadeAnimation={false}
             markerZoomAnimation={false}
-            attributionControl={USE_MAPTILER_VECTOR}
+            attributionControl={false}
             style={{ height: '100%', width: '100%' }}
           >
-            {USE_MAPTILER_VECTOR ? (
-              <MapTilerBasemap />
-            ) : (
-              <TileLayer
-                attribution={MAP_TILE.attribution}
-                url={MAP_TILE.url}
-                maxZoom={18}
-                maxNativeZoom={MAP_TILE.maxNativeZoom}
-                {...(MAP_TILE.subdomains ? { subdomains: MAP_TILE.subdomains } : {})}
-                updateWhenIdle
-                updateWhenZooming={false}
-                keepBuffer={1}
-              />
-            )}
+            <TileLayer
+              attribution={MAP_TILE.attribution}
+              url={MAP_TILE.url}
+              maxZoom={18}
+              maxNativeZoom={MAP_TILE.maxNativeZoom}
+              {...(MAP_TILE.subdomains ? { subdomains: MAP_TILE.subdomains } : {})}
+              updateWhenIdle
+              updateWhenZooming={false}
+              keepBuffer={2}
+            />
             <GeoJSON
               data={oblastsGeo}
               style={(feature) => ({
@@ -423,7 +435,7 @@ export default function MapTab() {
       <div className="px-4 py-3 pb-4">
         {needTypeFirst ? (
           <p className="type-kicker">
-            Выберите тип – на карте появятся точки, снизу список адресов
+            Выберите один или несколько типов – на карте появятся пункты, где можно сдать всё выбранное
           </p>
         ) : (
           <>
@@ -431,13 +443,17 @@ export default function MapTab() {
               Адреса
               <span className="ml-2 type-kicker">{points.length}</span>
             </p>
-            <p className="type-kicker mb-2">Сначала выгоднее и удобнее сдать</p>
+            <p className="type-kicker mb-2">
+              {filterTypes.length > 1
+                ? 'Пункты, где принимают всё выбранное сразу'
+                : 'Сначала выгоднее и удобнее сдать'}
+            </p>
             <div className="space-y-2 max-h-52 overflow-y-auto">
               {points.length === 0 && (
                 <p className="type-empty">
-                  {loc.settlement && loc.settlement !== 'Гродно'
-                    ? `Пункты в городе ${loc.settlement} появятся следующим этапом.`
-                    : 'В этом районе пока нет пунктов такого типа.'}
+                  {filterTypes.length > 1
+                    ? 'Нет пунктов, где принимают всё выбранное сразу. Снимите лишний тип или посмотрите отдельно.'
+                    : `В этом месте пока нет пунктов такого типа. Попробуйте снять фильтр или выбрать другой населённый пункт.`}
                 </p>
               )}
               {points.map((p) => (
@@ -452,9 +468,9 @@ export default function MapTab() {
                     <p className="type-title truncate">
                       {p.short_address || p.address}
                     </p>
-                    <p className="type-meta">{accessInfo(p).label} · {p.district} район · {p.organization}</p>
-                    {relevanceHint(p, filterType) && (
-                      <p className="type-kicker mt-0.5">{relevanceHint(p, filterType)}</p>
+                    <p className="type-meta">{accessInfo(p).label} · {(p.oblast === 'Гродненская область' ? `${p.district} район` : p.district)} · {p.organization}</p>
+                    {relevanceHint(p, filterTypes) && (
+                      <p className="type-kicker mt-0.5">{relevanceHint(p, filterTypes)}</p>
                     )}
                   </div>
                 </button>

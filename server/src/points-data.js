@@ -1,4 +1,5 @@
 import { locateByAddress, shortStreet } from './grodno-geo.js';
+import { REGION_POINTS } from './points-regions.js';
 
 export const ZAGOTTORG_PRICES =
   'Макулатура, стеклобой, полимеры, металлы, масла, бытовая техника, стеклотара. Актуальный прайс – на месте и на zagottorg.by';
@@ -317,4 +318,6 @@ export const POINTS = [
   }),
 ];
 
-export const DATA_VERSION = 11;
+POINTS.push(...REGION_POINTS.map(fillGeo));
+
+export const DATA_VERSION = 13;

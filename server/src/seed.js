@@ -24,12 +24,12 @@ async function seedPoints() {
   for (const p of POINTS) {
     await run(`
       INSERT INTO recycling_points
-        (name, organization, type, district, lat, lng, address, phone, website, hours, prices, logistics, description, transit, source_key, short_address, accepts, last_synced, oblast, settlement, access_mode)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (name, organization, type, district, lat, lng, address, phone, website, hours, prices, logistics, description, transit, source_key, short_address, accepts, last_synced, oblast, settlement, access_mode, source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
     p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
-    p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode);
+    p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '');
   }
 
   await run("INSERT OR REPLACE INTO meta (key, value) VALUES ('points_version', ?)", String(DATA_VERSION));
