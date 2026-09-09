@@ -45,7 +45,7 @@ export default function App() {
         const msg = String(e?.message || '');
         setLoadError(
           msg === 'Unauthorized'
-            ? 'Не удалось войти через Telegram. Полностью закройте Mini App и откройте снова: @EcoHubBY_bot → /start → кнопка приложения.'
+            ? 'Не удалось войти через Telegram. Полностью закройте Mini App и откройте снова: @EcoHubBY_bot → /start → кнопка «Запустить EcoHub».'
             : 'Не удалось подключиться к серверу EcoHub. Подождите до минуты (сервер может просыпаться) и нажмите «Повторить», или откройте снова через @EcoHubBY_bot → /start.',
         );
       }
@@ -132,7 +132,7 @@ export default function App() {
                 <>
                   <p className="type-title mt-4">Откройте EcoHub в Telegram</p>
                   <p className="type-body mt-2">
-                    Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «♻️ EcoHub сейчас».
+                    Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «Запустить EcoHub».
                   </p>
                   <a
                     className="btn-primary mt-4 inline-flex w-full items-center justify-center"
