@@ -76,6 +76,15 @@ if (bot) {
     if (req.path === '/telegram/webhook') console.log('🤖 Telegram update');
     next();
   });
+  // Reject requests without the webhook secret Telegram sends in
+  // `x-telegram-bot-api-secret-token` (avoids forged updates).
+  app.use('/telegram/webhook', (req, res, next) => {
+    const secret = String(process.env.WEBHOOK_SECRET || '').trim();
+    if (secret && req.headers['x-telegram-bot-api-secret-token'] !== secret) {
+      return res.status(401).end();
+    }
+    return next();
+  });
   app.use(bot.webhookCallback('/telegram/webhook'));
 }
 
@@ -118,7 +127,13 @@ async function setupTelegram(botInstance, url) {
   }
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
-      await botInstance.telegram.setWebhook(hookUrl, { drop_pending_updates: false });
+      const hookSecret = String(process.env.WEBHOOK_SECRET || '').trim();
+      await botInstance.telegram.setWebhook(
+        hookUrl,
+        hookSecret
+          ? { drop_pending_updates: false, secret_token: hookSecret }
+          : { drop_pending_updates: false },
+      );
       console.log(`🤖 Telegram webhook: ${hookUrl}`);
       return;
     } catch (err) {
