@@ -50,18 +50,32 @@ export default function App() {
             window.location.reload();
             return;
           } catch {
-            /* stay with fallback */
+            /* fall through */
           }
         }
-        // Zombie background session: Telegram bridge is there but it never
-        // re-initialized. Close the app for real so Telegram clears the
-        // "EcoHub сейчас" status bar instead of showing instructions.
+        // Zombie background session: the Telegram bridge is there but the app
+        // was never re-initialized. Guide back to a fresh launch (like /start)
+        // via native deep link first, then the https t.me link, then close.
         try {
-          sessionStorage.removeItem('ecohub_reload_attempted');
+          window.location.href = 'tg://resolve?domain=EcoHubBY_bot&startapp=menu';
         } catch {
           /* ignore */
         }
-        tg.close();
+        setTimeout(() => {
+          try {
+            window.location.href = 'https://t.me/EcoHubBY_bot?startapp=menu';
+          } catch {
+            /* ignore */
+          }
+        }, 800);
+        setTimeout(() => {
+          try {
+            sessionStorage.removeItem('ecohub_reload_attempted');
+            tg.close();
+          } catch {
+            /* ignore */
+          }
+        }, 3000);
         return;
       }
       if (!inTelegram) {
@@ -102,6 +116,23 @@ export default function App() {
     }, 1500);
     return () => clearTimeout(t);
   }, [loadError]);
+
+  // Never let the Mini App stay "running in background": if the user leaves
+  // (home gesture / iOS minimize), close the session for real so Telegram
+  // cannot keep the "EcoHub сейчас" status bar over the chat.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden' && window.Telegram?.WebApp?.initData) {
+        try {
+          tg.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   useEffect(() => {
     if (!user?.profile_complete) return undefined;
