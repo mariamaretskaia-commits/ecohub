@@ -35,7 +35,7 @@ export default function InfoTab({ onChangeTab }) {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <Sticker name="share" size={32} />
-          <h3 className="type-title">Как отдать или взять вещь</h3>
+          <h3 className="type-title">Как отдать или взять вещь?</h3>
         </div>
         <ul className="space-y-3">
           <Thesis
@@ -78,7 +78,7 @@ export default function InfoTab({ onChangeTab }) {
       <div className="card p-5">
         <div className="flex items-center gap-2 mb-3">
           <Sticker name="pin" size={32} />
-          <h3 className="type-title">Что на карте</h3>
+          <h3 className="type-title">Что на карте?</h3>
         </div>
         <p className="type-body mb-3">
           Выберите, что сдаёте – увидите подходящие пункты. Типы на карте:
@@ -105,7 +105,7 @@ export default function InfoTab({ onChangeTab }) {
 
       <div className="text-center type-meta py-3">
         <p>Конкурс «100 идей для Беларуси»</p>
-        <p className="mt-1">Беларусь · 2026</p>
+        <p className="mt-1">Республика Беларусь · 2026</p>
       </div>
     </div>
   );
