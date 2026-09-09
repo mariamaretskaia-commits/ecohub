@@ -127,6 +127,20 @@ export default function App() {
     changeTab('feed');
   }, [changeTab]);
 
+  const enterTelegram = useCallback(() => {
+    // Prefer the native scheme (works inside Telegram's built-in browser and
+    // on phones): it opens the bot and launches the Main Mini App directly.
+    // If the client blocks tg://, fall back to the https t.me link.
+    try {
+      window.location.href = 'tg://resolve?domain=EcoHubBY_bot&startapp=menu';
+    } catch {
+      /* ignore */
+    }
+    setTimeout(() => {
+      window.location.href = 'https://t.me/EcoHubBY_bot?startapp=menu';
+    }, 700);
+  }, []);
+
   return (
     <div className="relative min-h-screen pb-28 overflow-x-hidden">
       <div className="organic-blob bg-mint-200/60 w-56 h-56 -top-16 -right-16" />
@@ -158,14 +172,13 @@ export default function App() {
                   <p className="type-body mt-2">
                     Ссылка в браузере не подходит для входа. Зайдите в бота @EcoHubBY_bot, нажмите /start и кнопку «Запустить EcoHub». Если плашка «EcoHub сейчас» осталась — закройте приложение полностью (свайп вверх) и откройте заново.
                   </p>
-                  <a
+                  <button
+                    type="button"
                     className="btn-primary mt-4 inline-flex w-full items-center justify-center"
-                    href="https://t.me/EcoHubBY_bot"
-                    target="_blank"
-                    rel="noreferrer"
+                    onClick={enterTelegram}
                   >
-                    Открыть @EcoHubBY_bot
-                  </a>
+                    Открыть в Telegram и запустить EcoHub
+                  </button>
                 </>
               ) : (
                 <>
