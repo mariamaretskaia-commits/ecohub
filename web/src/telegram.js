@@ -11,8 +11,21 @@ export const tg = {
       app.expand?.();
       app.setHeaderColor?.('#fff8ee');
       app.setBackgroundColor?.('#f3fbf6');
+      // Vertical swipe down currently MINIMIZES the app instead of closing it,
+      // leaving the "EcoHub сейчас" status bar stuck over the chat input and
+      // making restore sessions freeze. Disable it so swiping closes for real.
+      app.disableVerticalSwipes?.();
     } catch {
       // ignore outside Telegram
+    }
+  },
+  close() {
+    const app = getWebApp();
+    if (!app) return;
+    try {
+      app.close?.();
+    } catch {
+      // already closed / not in Telegram
     }
   },
   showAlert(message) {
