@@ -18,6 +18,7 @@ export default function App() {
   const [loadSlow, setLoadSlow] = useState(false);
   const [chatWantId, setChatWantId] = useState(null);
   const [chatUnread, setChatUnread] = useState(0);
+  const [fromZombie, setFromZombie] = useState(false);
 
   useEffect(() => {
     document.documentElement.style.height = '100%';
@@ -41,33 +42,13 @@ export default function App() {
       console.error(e);
       const webAppExists = Boolean(window.Telegram?.WebApp);
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
-      // Resumed from the status-bar session: Telegram WebView exists but
-      // initData may arrive a moment after load. Do NOT reload or close —
-      // wait up to ~6s for Telegram to inject it, then retry auth.
+      // Resumed from the "♻️ EcoHub сейчас" status bar: the Telegram bridge is
+      // there but Telegram never re-injects initData into a stale session.
+      // Show the launch screen IMMEDIATELY — no spinner, no waiting, no
+      // self-close.
       if (webAppExists && !inTelegram) {
-        let tries = 0;
-        const pollInitData = setInterval(() => {
-          tries += 1;
-          if (window.Telegram?.WebApp?.initData) {
-            clearInterval(pollInitData);
-            try {
-              sessionStorage.removeItem('ecohub_reload_attempted');
-            } catch {
-              /* ignore */
-            }
-            tg.ready();
-            refreshUser();
-            return;
-          }
-          if (tries >= 20) {
-            clearInterval(pollInitData);
-            // Telegram never initialized this stale session: show the minimal
-            // launch screen instead of silently closing (never self-close —
-            // that makes the status bar look broken).
-            setLoadError('open_telegram');
-          }
-        }, 300);
-        setLoading(false);
+        setFromZombie(true);
+        setLoadError('open_telegram');
         return;
       }
       if (!inTelegram) {
@@ -98,16 +79,18 @@ export default function App() {
     return () => clearTimeout(t);
   }, [loading, user]);
 
-  // Opened outside Telegram (e.g. from the stale "EcoHub сейчас" status bar).
-  // On mobile, re-enter Telegram automatically so the app launches for real.
+  // Opened in a real browser (not Telegram): on mobile, re-enter Telegram
+  // automatically. For a status-bar zombie session the launch screen stays —
+  // the user taps "Запустить EcoHub" themselves.
   useEffect(() => {
     if (loadError !== 'open_telegram') return undefined;
+    if (fromZombie) return undefined;
     if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return undefined;
     const t = setTimeout(() => {
       window.location.replace('https://t.me/EcoHubBY_bot/ecohub');
     }, 1500);
     return () => clearTimeout(t);
-  }, [loadError]);
+  }, [loadError, fromZombie]);
 
   // The "EcoHub сейчас" status bar only exists while the Mini App stays
   // "running in background". Close the session shortly AFTER the app is really
