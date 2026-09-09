@@ -15,7 +15,7 @@ function buttonSets(webAppUrl) {
 
 export async function pushOpenButtons(telegram, chatId, webAppUrl, text) {
   const ui = buttonSets(webAppUrl);
-  await telegram.sendMessage(chatId, text, { ...ui.keyboard, ...LOUD });
+  await telegram.sendMessage(chatId, text, { ...ui.inline, ...LOUD });
 }
 
 export function createBot(token, webAppUrl) {
@@ -56,7 +56,7 @@ export function createBot(token, webAppUrl) {
   bot.on('contact', async (ctx) => {
     await ctx.reply(
       'Профиль уже привязан к этому Telegram. Запустите EcoHub кнопкой ниже.',
-      { ...buttonSets(webAppUrl).keyboard, ...LOUD },
+      { ...buttonSets(webAppUrl).inline, ...LOUD },
     );
   });
 
