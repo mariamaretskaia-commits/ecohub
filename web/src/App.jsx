@@ -53,29 +53,21 @@ export default function App() {
             /* fall through */
           }
         }
-        // Zombie background session: the Telegram bridge is there but the app
-        // was never re-initialized. Guide back to a fresh launch (like /start)
-        // via native deep link first, then the https t.me link, then close.
+        // Stale background session: without a registered Main Mini App in
+        // BotFather, deep links like tg://…&startapp make Telegram report
+        // "BOT_INVALID". Do NOT navigate anywhere — just close quietly.
         try {
-          window.location.href = 'tg://resolve?domain=EcoHubBY_bot&startapp=menu';
+          sessionStorage.removeItem('ecohub_reload_attempted');
         } catch {
           /* ignore */
         }
         setTimeout(() => {
           try {
-            window.location.href = 'https://t.me/EcoHubBY_bot?startapp=menu';
-          } catch {
-            /* ignore */
-          }
-        }, 800);
-        setTimeout(() => {
-          try {
-            sessionStorage.removeItem('ecohub_reload_attempted');
             tg.close();
           } catch {
             /* ignore */
           }
-        }, 3000);
+        }, 700);
         return;
       }
       if (!inTelegram) {
