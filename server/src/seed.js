@@ -1,6 +1,7 @@
 import { get, all, run, exec, isPostgres } from './db.js';
 import { POINTS, DATA_VERSION } from './points-data.js';
 import { importTarget99 } from './import-target99.js';
+import { importCharity } from './import-charity.js';
 
 const COLS = [
   'name', 'organization', 'type', 'district', 'lat', 'lng', 'address', 'phone', 'website',
@@ -89,6 +90,7 @@ async function seedDemoItems() {
 export async function runSeed() {
   await seedPoints();
   await importTarget99();
+  await importCharity();
   await seedDemoItems();
 
   await run(`
