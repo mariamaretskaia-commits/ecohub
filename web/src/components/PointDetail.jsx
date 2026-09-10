@@ -10,6 +10,11 @@ export default function PointDetail({ point, onBack }) {
   const callHref = telHref(point.phone);
   const isTelegramSite = /t\.me\//i.test(point.website || '');
 
+  const handleCall = () => {
+    if (!callHref) return;
+    window.location.href = callHref;
+  };
+
   const handleWebsite = () => {
     if (!point.website) return;
     if (isTelegramSite) tg.openTelegramLink(point.website);
@@ -71,7 +76,11 @@ export default function PointDetail({ point, onBack }) {
 
         <div className="flex gap-2 mt-5">
           {callHref && (
-            <a href={callHref} className="btn-primary flex-1 py-2.5 inline-flex items-center justify-center gap-1.5 no-underline">
+            <a
+              href={callHref}
+              onClick={handleCall}
+              className="btn-primary flex-1 py-2.5 inline-flex items-center justify-center gap-1.5 no-underline"
+            >
               <Sticker name="phone" size={20} className="!drop-shadow-none" />
               Позвонить
             </a>

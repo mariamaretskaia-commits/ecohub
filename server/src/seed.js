@@ -1,5 +1,12 @@
 import { get, all, run, exec, isPostgres } from './db.js';
 import { POINTS, DATA_VERSION } from './points-data.js';
+import { importTarget99 } from './import-target99.js';
+
+const COLS = [
+  'name', 'organization', 'type', 'district', 'lat', 'lng', 'address', 'phone', 'website',
+  'hours', 'prices', 'logistics', 'description', 'transit', 'source_key', 'short_address',
+  'accepts', 'last_synced', 'oblast', 'settlement', 'access_mode', 'source',
+];
 
 const DEMO_ITEMS = [
   { title: 'Детский конструктор LEGO', description: 'Большой набор, все детали на месте.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Ленинский', category: 'Игрушки', type: 'free', first_name: 'Анна', username: 'anna_grodno' },
@@ -18,22 +25,44 @@ async function seedPoints() {
   const version = await get("SELECT value FROM meta WHERE key = 'points_version'");
   if (version && Number(version.value) >= DATA_VERSION) return;
 
-  await exec('DELETE FROM recycling_submissions');
-  await exec('DELETE FROM recycling_points');
+  const existing = await all('SELECT id, source_key FROM recycling_points');
+  const bySource = new Map(
+    existing.filter((r) => r.source_key).map((r) => [String(r.source_key).toLowerCase(), r.id])
+  );
 
+  let inserted = 0;
   for (const p of POINTS) {
-    await run(`
-      INSERT INTO recycling_points
-        (name, organization, type, district, lat, lng, address, phone, website, hours, prices, logistics, description, transit, source_key, short_address, accepts, last_synced, oblast, settlement, access_mode, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
-    p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
-    p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '');
+    const fallbackKey = String(p.organization || '').toLowerCase() + '|' + String(p.address || '').toLowerCase();
+    const key = String(p.source_key || fallbackKey).toLowerCase();
+    const id = bySource.get(key);
+    if (id) {
+      await run(`
+        UPDATE recycling_points SET
+          name = ?, organization = ?, type = ?, district = ?, lat = ?, lng = ?, address = ?,
+          phone = ?, website = ?, hours = ?, prices = ?, logistics = ?, description = ?,
+          transit = ?, short_address = ?, accepts = ?, last_synced = ?, oblast = ?,
+          settlement = ?, access_mode = ?, source = ?
+        WHERE id = ?
+      `,
+      p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
+      p.hours, p.prices, p.logistics, p.description, p.transit, p.short_address, p.accepts,
+      p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '', id);
+    } else {
+      const r = await run(`
+        INSERT INTO recycling_points
+          (${COLS.join(', ')})
+        VALUES (${COLS.map(() => '?').join(', ')})
+      `,
+      p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
+      p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
+      p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '');
+      inserted += 1;
+      bySource.set(key, r.lastInsertRowid);
+    }
   }
 
   await run("INSERT OR REPLACE INTO meta (key, value) VALUES ('points_version', ?)", String(DATA_VERSION));
-  console.log(`✅ Загружено ${POINTS.length} пунктов на карту (v${DATA_VERSION})`);
+  console.log(`✅ Пункты на карте: ${POINTS.length} в датасете, добавлено новых ${inserted} (v${DATA_VERSION})`);
 }
 
 async function seedDemoItems() {
@@ -59,6 +88,7 @@ async function seedDemoItems() {
 
 export async function runSeed() {
   await seedPoints();
+  await importTarget99();
   await seedDemoItems();
 
   await run(`

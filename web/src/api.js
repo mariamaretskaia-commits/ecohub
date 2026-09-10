@@ -220,8 +220,11 @@ export const CATEGORIES = [
 
 export const POINT_TYPES = {
   paper: { label: 'Макулатура', sticker: 'paper', color: '#2fb66a' },
+  glass: { label: 'Стекло', sticker: 'glass', color: '#38bdf8' },
+  plastic: { label: 'Пластик', sticker: 'plastic', color: '#a78bfa' },
   electronics: { label: 'Бытовая техника', sticker: 'electronics', color: '#5b8def' },
   clothing: { label: 'Одежда и игрушки', sticker: 'clothing', color: '#f5c542' },
   hazardous: { label: 'Опасные отходы', sticker: 'hazardous', color: '#ef6b6b' },
   metal: { label: 'Металлолом', sticker: 'metal', color: '#8a93a3' },
+  other: { label: 'Иное', sticker: 'other', color: '#94a3b8' },
 };
