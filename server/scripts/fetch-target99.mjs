@@ -159,6 +159,7 @@ async function main() {
     let oblast = cleanName(city?.oblast || '');
     const settlement = cleanName(city?.name || '');
     if (settlement === 'Минск') oblast = 'г. Минск';
+    if (oblast === 'Могилевская область') oblast = 'Могилёвская область';
     const accessMode = /контейнер|площадка для сбора/.test(typeLabel) ? 'box' : 'counter';
     oblastCount.set(oblast, (oblastCount.get(oblast) || 0) + 1);
 
