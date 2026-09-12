@@ -2,9 +2,10 @@ name: keepalive
 
 on:
   schedule:
-    # Every 5 minutes - keeps the free-tier Render web service awake
-    # (Render free plans sleep after ~15 min of no traffic)
-    - cron: '*/5 * * * *'
+    # Hourly wake of the free-tier Render web service (Render free plans
+    # sleep after ~15 min of no traffic). Kept at a minimum to avoid
+    # notification noise; runs never fail so GitHub stays quiet.
+    - cron: '17 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -15,13 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping ecohub health endpoint
+        continue-on-error: true
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://ecohub-baoc.onrender.com/health)
           echo "health HTTP $code"
           if [ "$code" != "200" ]; then
-            # First hit may wake the service; try once more after a short wait
+            # Service may be waking from sleep; retry once and report, but never fail the run.
             sleep 20
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://ecohub-baoc.onrender.com/health)
             echo "health retry HTTP $code"
           fi
-          test "$code" = "200"
+          echo "status=$code" >> "$GITHUB_OUTPUT"

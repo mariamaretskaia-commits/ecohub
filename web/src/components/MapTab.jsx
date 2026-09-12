@@ -7,6 +7,7 @@ import oblastsGeo from '../data/belarus-oblasts.json';
 import LocationSelect from './LocationSelect';
 import PointDetail from './PointDetail';
 import Sticker, { STICKERS } from './Sticker';
+import SuggestPointForm from './SuggestPointForm';
 import { sortByRelevance, relevanceHint } from '../point-rank';
 import { accessInfo } from '../point-access';
 import { MAP_TILE } from '../map-tiles';
@@ -15,11 +16,6 @@ const GRODNO_BOUNDS = [
   [53.60, 23.71],
   [53.76, 23.94],
 ];
-
-const DISTRICT_BOUNDS = {
-  Ленинский: [[53.678, 23.79], [53.76, 23.88]],
-  Октябрьский: [[53.60, 23.72], [53.695, 23.93]],
-};
 
 const MAJOR_CITIES = new Set([
   'Минск', 'Брест', 'Гродно', 'Гомель', 'Витебск', 'Могилёв',
@@ -118,7 +114,12 @@ function MapFly({ loc, focusPoint }) {
       return;
     }
     if (loc.settlement === 'Гродно' && district) {
-      map.fitBounds(DISTRICT_BOUNDS[district] || GRODNO_BOUNDS, { padding: [28, 28], maxZoom: 13, animate: true });
+      const coords = CITY_DISTRICT_COORDS.Гродно?.[district];
+      if (coords) {
+        map.flyTo(coords, 13, { animate: true });
+      } else {
+        map.fitBounds(GRODNO_BOUNDS, { padding: [28, 28], maxZoom: 13, animate: true });
+      }
       return;
     }
     if (loc.settlement) {
@@ -152,6 +153,7 @@ export default function MapTab() {
   const [selectedPoint, setSelectedPoint] = useState(null);
   const [loading, setLoading] = useState(true);
   const [focusPoint, setFocusPoint] = useState(null);
+  const [suggestOpen, setSuggestOpen] = useState(false);
   const [zoom, setZoom] = useState(7);
   const zoomRef = useRef(7);
   zoomRef.current = zoom;
@@ -390,7 +392,7 @@ export default function MapTab() {
                 position={coords}
                 icon={L.divIcon({
                   className: 'map-label-wrap',
-                  html: `<span class="map-label map-label-district${(loc.districts || []).includes(name) ? ' is-active' : ''}">${name} район</span>`,
+                  html: `<span class="map-label map-label-district${(loc.districts || []).includes(name) ? ' is-active' : ''}">${name}</span>`,
                   iconSize: [0, 0],
                 })}
                 eventHandlers={{
@@ -468,7 +470,7 @@ export default function MapTab() {
                     <p className="type-title truncate">
                       {p.short_address || p.address}
                     </p>
-                    <p className="type-meta">{accessInfo(p).label} · {(p.oblast === 'Гродненская область' ? `${p.district} район` : p.district)} · {p.organization}</p>
+                    <p className="type-meta">{accessInfo(p).label} · {p.district} · {p.organization}</p>
                     {relevanceHint(p, filterTypes) && (
                       <p className="type-kicker mt-0.5">{relevanceHint(p, filterTypes)}</p>
                     )}
@@ -479,6 +481,18 @@ export default function MapTab() {
           </>
         )}
       </div>
+
+      <div className="px-4 pt-2 pb-4">
+        <button
+          type="button"
+          onClick={() => setSuggestOpen(true)}
+          className="btn-primary w-full"
+        >
+          Предложить пункт
+        </button>
+      </div>
+
+      {suggestOpen && <SuggestPointForm onClose={() => setSuggestOpen(false)} />}
     </div>
   );
 }

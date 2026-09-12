@@ -51,8 +51,12 @@ export default function PointDetail({ point, onBack }) {
           {point.district && (
             <InfoRow
               sticker="pin"
-              label="Район"
-              value={/район/i.test(point.district) ? point.district : `${point.district} район`}
+              label={point.settlement === 'Гродно' ? 'Микрорайон' : 'Район'}
+              value={
+                point.settlement === 'Гродно' || /район/i.test(point.district)
+                  ? point.district
+                  : `${point.district} район`
+              }
             />
           )}
           <InfoRow sticker="pin" label="Адрес" value={point.address} />

@@ -19,7 +19,11 @@ function toPgPlaceholders(sql) {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-export function adaptSql(sql) {
+export function bindSafe(params) {
+  return params.map((v) => (v === undefined ? null : v));
+}
+
+function adaptSql(sql) {
   if (!usePg) return sql;
   let s = sql;
   s = s.replace(/INSERT OR IGNORE INTO/gi, 'INSERT INTO');
@@ -41,12 +45,19 @@ export function adaptSql(sql) {
 }
 
 async function initSqlite() {
-  const Database = (await import('better-sqlite3')).default;
   const dataDir = path.join(__dirname, '..', 'data');
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  sqlite = new Database(path.join(dataDir, 'eco-grodno.db'));
-  sqlite.pragma('journal_mode = WAL');
-  sqlite.pragma('foreign_keys = ON');
+  const dbPath = path.join(dataDir, 'eco-grodno.db');
+  try {
+    const Database = (await import('better-sqlite3')).default;
+    sqlite = new Database(dbPath);
+  } catch (err) {
+    console.warn('[db] better-sqlite3 недоступен, используем встроенный node:sqlite:', err.message);
+    const { DatabaseSync } = await import('node:sqlite');
+    sqlite = new DatabaseSync(dbPath);
+  }
+  sqlite.exec('PRAGMA journal_mode = WAL');
+  sqlite.exec('PRAGMA foreign_keys = ON');
   ensureSqliteSchema(sqlite);
 }
 
@@ -152,6 +163,15 @@ function ensureSqliteSchema(db) {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+    CREATE TABLE IF NOT EXISTS point_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      address TEXT NOT NULL,
+      contact TEXT,
+      status TEXT DEFAULT 'new',
+      notified INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
   const pointCols = db.prepare('PRAGMA table_info(recycling_points)').all().map((c) => c.name);
@@ -226,7 +246,7 @@ export async function get(sql, ...params) {
     const r = await pool.query(toPgPlaceholders(q), params);
     return r.rows[0] || undefined;
   }
-  return sqlite.prepare(q).get(...params);
+  return sqlite.prepare(q).get(...bindSafe(params));
 }
 
 export async function all(sql, ...params) {
@@ -236,7 +256,7 @@ export async function all(sql, ...params) {
     const r = await pool.query(toPgPlaceholders(q), params);
     return r.rows;
   }
-  return sqlite.prepare(q).all(...params);
+  return sqlite.prepare(q).all(...bindSafe(params));
 }
 
 export async function run(sql, ...params) {
@@ -253,7 +273,7 @@ export async function run(sql, ...params) {
       changes: r.rowCount || 0,
     };
   }
-  const info = sqlite.prepare(q).run(...params);
+  const info = sqlite.prepare(q).run(...bindSafe(params));
   return { lastInsertRowid: info.lastInsertRowid, changes: info.changes };
 }
 

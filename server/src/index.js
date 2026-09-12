@@ -8,7 +8,8 @@ import fs from 'fs';
 import { authMiddleware, optionalAuthMiddleware } from './auth.js';
 import { registerUserRoutes, registerItemRoutes, registerPointRoutes } from './routes.js';
 import { registerChatRoutes } from './chat.js';
-import { createBot, configureBot } from '../../bot/src/createBot.js';
+import { registerSuggestionRoutes } from './suggestions.js';
+import { createBot } from '../../bot/src/createBot.js';
 import { initDb } from './db.js';
 import { startPointSync } from './sync.js';
 import { resolveWebAppUrl } from './env.js';
@@ -94,6 +95,7 @@ registerUserRoutes(app, authMiddleware);
 registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware, webAppUrl);
 registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload);
 registerPointRoutes(app);
+registerSuggestionRoutes(app, bot);
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');
 if (fs.existsSync(webDist)) {
@@ -119,12 +121,7 @@ async function setupTelegram(botInstance, url) {
     console.warn('Telegram getMe failed:', err.message);
   }
   const hookUrl = `${url.replace(/\/$/, '')}/telegram/webhook`;
-  try {
-    await configureBot(botInstance, url);
-    console.log(`🤖 Bot menu → ${url}`);
-  } catch (err) {
-    console.warn('Telegram menu was not set:', err.message);
-  }
+  console.log(`🤖 Имя и описание бота не меняем — остаются как настроено вручную`);
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       const hookSecret = String(process.env.WEBHOOK_SECRET || '').trim();

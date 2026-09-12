@@ -76,7 +76,7 @@ export default function LocationSelect({
 
       <div>
         <span className="type-label">
-          {grodnoCity ? 'Район города' : multiDistrict ? 'Районы – можно несколько' : 'Район'}
+          {grodnoCity ? 'Микрорайон' : multiDistrict ? 'Районы – можно несколько' : 'Район'}
         </span>
         {multiDistrict ? (
           <div className="flex flex-wrap gap-2 pt-2">
@@ -96,7 +96,7 @@ export default function LocationSelect({
                 onClick={() => toggleDistrict(name)}
                 className={`filter-chip ${selectedDistricts.includes(name) ? 'filter-chip-active' : 'filter-chip-inactive'}`}
               >
-                {grodnoCity ? `${name} район` : name}
+                {name}
               </button>
             ))}
           </div>
@@ -110,7 +110,7 @@ export default function LocationSelect({
           >
             <option value="">{allowEmpty ? 'Любой район' : 'Выбрать район'}</option>
             {districtOptions.map((name) => (
-              <option key={name} value={name}>{grodnoCity ? `${name} район` : name}</option>
+              <option key={name} value={name}>{name}</option>
             ))}
           </select>
         )}

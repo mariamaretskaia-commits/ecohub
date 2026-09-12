@@ -1,4 +1,5 @@
 import { Telegraf, Markup } from 'telegraf';
+import { isDeveloperUser, saveDeveloperChatId } from '../../server/src/suggestions.js';
 
 const LOUD = { disable_notification: false };
 
@@ -30,14 +31,17 @@ export function createBot(token, webAppUrl) {
 💡 Чтобы не пропустить отклики: ⋮ → «Уведомления» → «Включены».`;
 
   bot.start(async (ctx) => {
+    if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     await pushOpenButtons(ctx.telegram, ctx.chat.id, webAppUrl, welcomeText);
   });
 
   bot.command('app', async (ctx) => {
+    if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     await pushOpenButtons(ctx.telegram, ctx.chat.id, webAppUrl, 'Запустите мини-приложение кнопкой ниже:');
   });
 
   bot.command('phone', async (ctx) => {
+    if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     await pushOpenButtons(
       ctx.telegram,
       ctx.chat.id,
@@ -54,6 +58,7 @@ export function createBot(token, webAppUrl) {
   });
 
   bot.on('contact', async (ctx) => {
+    if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     await ctx.reply(
       'Профиль уже привязан к этому Telegram. Запустите EcoHub кнопкой ниже.',
       { ...buttonSets(webAppUrl).inline, ...LOUD },
@@ -61,6 +66,7 @@ export function createBot(token, webAppUrl) {
   });
 
   bot.on('message', async (ctx) => {
+    if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     if (ctx.message.contact) return;
     if (ctx.message.text?.startsWith('/')) return;
 
@@ -79,24 +85,4 @@ export function createBot(token, webAppUrl) {
   });
 
   return bot;
-}
-
-export async function configureBot(bot, webAppUrl) {
-  await bot.telegram.setMyName('EcoHub');
-  await bot.telegram.setMyDescription(
-    'EcoHub – даром вещи и карта переработки по Беларуси. Найдите бота по имени EcoHub или @EcoHubBY_bot. Запустите мини-приложение и укажите, как к Вам обращаться.',
-  );
-  await bot.telegram.setMyShortDescription('EcoHub – даром вещи и карта переработки по Беларуси');
-  await bot.telegram.setChatMenuButton({
-    menuButton: {
-      type: 'web_app',
-      text: 'EcoHub',
-      web_app: { url: webAppUrl },
-    },
-  });
-  await bot.telegram.setMyCommands([
-    { command: 'start', description: 'Открыть EcoHub' },
-    { command: 'app', description: 'Запустить приложение' },
-    { command: 'help', description: 'Справка' },
-  ]);
 }

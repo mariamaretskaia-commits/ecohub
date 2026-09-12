@@ -172,6 +172,8 @@ export const api = {
     return request(`/api/points${q ? `?${q}` : ''}`);
   },
   getPoint: (id) => request(`/api/points/${id}`),
+  suggestPoint: (body) =>
+    request('/api/suggest-point', { method: 'POST', body: JSON.stringify(body) }),
   getLeaderboard: () => request('/api/leaderboard'),
   getChatUnread: () => request('/api/chat/unread'),
   getChatThreads: () => request('/api/chat/threads'),

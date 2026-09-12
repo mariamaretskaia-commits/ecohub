@@ -125,5 +125,15 @@ CREATE TABLE IF NOT EXISTS meta (
   value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS point_suggestions (
+  id BIGSERIAL PRIMARY KEY,
+  type TEXT NOT NULL,
+  address TEXT NOT NULL,
+  contact TEXT,
+  status TEXT DEFAULT 'new',
+  notified INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Storage: create public bucket "item-photos" in Dashboard → Storage
 -- (or run via API after creating bucket in UI)

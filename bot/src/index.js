@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createBot, configureBot } from './createBot.js';
+import { createBot } from './createBot.js';
 
 console.error('Не запускайте polling: сервер уже принимает Telegram через webhook.');
 console.error('Оставьте работать server/src/index.js и откройте Mini App кнопкой в боте.');
@@ -31,7 +31,6 @@ console.log('Mini App URL:', WEBAPP_URL);
 
 bot.telegram.deleteWebhook({ drop_pending_updates: true })
   .then(() => bot.launch({ dropPendingUpdates: true }))
-  .then(() => configureBot(bot, WEBAPP_URL))
   .then(() => {
     console.log('🤖 Telegram bot started (polling)');
   })
