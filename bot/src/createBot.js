@@ -1,5 +1,5 @@
 import { Telegraf, Markup } from 'telegraf';
-import { isDeveloperUser, saveDeveloperChatId, notifyDeveloper } from '../../server/src/suggestions.js';
+import { isDeveloperUser, saveDeveloperChatId, getDeveloperChatId } from '../../server/src/suggestions.js';
 import { get, run } from '../../server/src/db.js';
 import { insertReport, insertBan, countOpenReports } from '../../server/src/trust/store.js';
 
@@ -72,7 +72,48 @@ export async function sendSupportTicket(bot, from, chatId, message) {
     String(body),
   ].join('\n');
 
-  return { ...(await notifyDeveloper(bot, text)), text };
+  try {
+    const devChatId = await getDeveloperChatId();
+    if (!devChatId) return { delivered: false, reason: 'no-chat-id', text };
+    const sent = await bot.telegram.sendMessage(devChatId, text, { disable_notification: false });
+    await run(
+      "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      `support_devmsg_${sent.message_id}`,
+      JSON.stringify({ user: String(chatId), dev: String(devChatId) }),
+    );
+    return { delivered: true, chatId: devChatId, messageId: sent.message_id, text };
+  } catch (err) {
+    console.warn('[support] ticket forward failed:', err.message);
+    return { delivered: false, reason: err.message, text };
+  }
+}
+
+/**
+ * Ответ поддержки на запрос пользователя. Отправляет текст в чат пользователя
+ * от имени бота, без данных самой поддержки (анонимно).
+ */
+export async function sendSupportReply(bot, devChatId, mappingJson, message) {
+  let mapping;
+  try {
+    mapping = JSON.parse(mappingJson);
+  } catch {
+    mapping = null;
+  }
+  if (!mapping || String(devChatId) !== String(mapping.dev)) {
+    return { ok: false, reason: 'not-a-support-chat' };
+  }
+  const text = String(message?.text || message?.caption || '').trim();
+  if (!text) return { ok: false, reason: 'empty-reply' };
+
+  try {
+    await bot.telegram.sendMessage(mapping.user, `💬 Ответ команды EcoHub:\n\n${text}`, {
+      disable_notification: false,
+    });
+    return { ok: true, to: mapping.user };
+  } catch (err) {
+    console.warn('[support] answer delivery failed:', err.message);
+    return { ok: false, reason: err.message };
+  }
 }
 
 function buttonSets(webAppUrl) {
@@ -155,6 +196,27 @@ export function createBot(token, webAppUrl) {
     if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     if (ctx.message.contact) return;
     if (ctx.message.text?.startsWith('/')) return;
+
+    // Ответ поддержки (реплай на «🛟 Запрос в поддержку» в чате поддержки).
+    const replyToId = ctx.message.reply_to_message?.message_id;
+    if (replyToId) {
+      const mapped = await get('SELECT value FROM meta WHERE key = ?', `support_devmsg_${replyToId}`);
+      if (mapped?.value) {
+        const res = await sendSupportReply(bot, String(ctx.chat.id), mapped.value, ctx.message);
+        if (res.ok) {
+          await ctx.reply('✅ Ответ отправлен пользователю.', LOUD);
+          return;
+        }
+        if (res.reason === 'empty-reply') {
+          await ctx.reply('Пока поддержка отвечает текстом — напишите текст сообщения.', LOUD);
+          return;
+        }
+        if (res.reason !== 'not-a-support-chat') {
+          await ctx.reply(`⚠️ Не удалось отправить ответ: ${res.reason}`, LOUD);
+          return;
+        }
+      }
+    }
 
     if (await isSupportMode(ctx.chat.id)) {
       const result = await sendSupportTicket(bot, ctx.from, ctx.chat.id, ctx.message);
