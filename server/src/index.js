@@ -150,7 +150,11 @@ async function setupTelegram(botInstance, url) {
 
 async function main() {
   await initDb();
-  await runSeed();
+  try {
+    await runSeed();
+  } catch (err) {
+    console.warn('⚠️ Seed skipped (non-fatal):', err.message);
+  }
 
   app.listen(PORT, async () => {
     console.log(`♻️ EcoHub API running on http://localhost:${PORT}`);
