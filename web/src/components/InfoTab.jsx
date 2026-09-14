@@ -129,7 +129,7 @@ export default function InfoTab({ onChangeTab }) {
           <h3 className="type-title">Поддержка</h3>
         </div>
         <p className="type-body mb-3">
-          Вопрос, ошибка или предложение? Откройте чат с ботом — команда ответит.
+          Вопрос, ошибка или предложение? Откройте чат с ботом – команда ответит.
         </p>
         <button
           type="button"
