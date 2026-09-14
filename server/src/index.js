@@ -10,7 +10,7 @@ import { registerUserRoutes, registerItemRoutes, registerPointRoutes } from './r
 import { registerChatRoutes } from './chat.js';
 import { registerSuggestionRoutes } from './suggestions.js';
 import { registerTrustAdminRoutes } from './trust-admin.js';
-import { createBot } from '../../bot/src/createBot.js';
+import { createBot, registerBotCommands } from '../../bot/src/createBot.js';
 import { initDb } from './db.js';
 import { startPointSync } from './sync.js';
 import { resolveWebAppUrl } from './env.js';
@@ -122,6 +122,7 @@ async function setupTelegram(botInstance, url) {
   } catch (err) {
     console.warn('Telegram getMe failed:', err.message);
   }
+  await registerBotCommands(botInstance.telegram);
   const hookUrl = `${url.replace(/\/$/, '')}/telegram/webhook`;
   console.log(`🤖 Имя и описание бота не меняем — остаются как настроено вручную`);
   for (let attempt = 0; attempt < 6; attempt += 1) {

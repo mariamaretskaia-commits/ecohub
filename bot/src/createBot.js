@@ -1,9 +1,79 @@
 import { Telegraf, Markup } from 'telegraf';
-import { isDeveloperUser, saveDeveloperChatId } from '../../server/src/suggestions.js';
+import { isDeveloperUser, saveDeveloperChatId, notifyDeveloper } from '../../server/src/suggestions.js';
 import { get, run } from '../../server/src/db.js';
 import { insertReport, insertBan, countOpenReports } from '../../server/src/trust/store.js';
 
 const LOUD = { disable_notification: false };
+
+export const BOT_COMMANDS = [
+  { command: 'start', description: 'Открыть EcoHub' },
+  { command: 'support', description: 'Поддержка: задать вопрос команде' },
+  { command: 'app', description: 'Запустить мини-приложение' },
+  { command: 'help', description: 'Список команд' },
+];
+
+const SUPPORT_MODE_PREFIX = 'support_mode_';
+
+const SUPPORT_INTRO = `💬 Поддержка EcoHub
+
+Опишите проблему или вопрос одним сообщением — команда получит его в своём чате и ответит вам сюда же.
+
+Ваши данные не публикуются: имя и username видны только команде.`;
+
+const SUPPORT_RECEIVED = `✅ Запрос отправлен команде EcoHub.
+
+Ответ придёт в этот чат. Спасибо за обратную связь!`;
+
+const SUPPORT_FAILED = `⚠️ Не получилось передать запрос. Попробуйте ещё раз чуть позже командой /support.`;
+
+async function setSupportMode(chatId) {
+  try {
+    await run(
+      "INSERT INTO meta (key, value) VALUES (?, '1') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      `${SUPPORT_MODE_PREFIX}${chatId}`,
+    );
+  } catch (err) {
+    console.warn('[support] setSupportMode:', err.message);
+  }
+}
+
+async function clearSupportMode(chatId) {
+  try {
+    await run('DELETE FROM meta WHERE key = ?', `${SUPPORT_MODE_PREFIX}${chatId}`);
+  } catch (err) {
+    console.warn('[support] clearSupportMode:', err.message);
+  }
+}
+
+async function isSupportMode(chatId) {
+  try {
+    const row = await get('SELECT value FROM meta WHERE key = ?', `${SUPPORT_MODE_PREFIX}${chatId}`);
+    return row?.value === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Пересылает сообщение пользователя команде (в публичный доступ не попадает). */
+export async function sendSupportTicket(bot, from, chatId, message) {
+  const name = [from?.first_name, from?.last_name].filter(Boolean).join(' ') || 'Аноним';
+  const username = from?.username ? `@${from.username}` : '';
+  const identity = name + (username ? ` (${username})` : '');
+  const body = message?.text
+    || (message?.caption ? `📷 ${message.caption}` : null)
+    || (message?.photo ? '📷 Фото' : null)
+    || '(без текста)';
+
+  const text = [
+    '🛟 Запрос в поддержку',
+    `От: ${identity}`,
+    `TG id: ${String(from?.id || '')} · чат: ${String(chatId)}`,
+    '',
+    String(body),
+  ].join('\n');
+
+  return { ...(await notifyDeveloper(bot, text)), text };
+}
 
 function buttonSets(webAppUrl) {
   return {
@@ -34,16 +104,24 @@ export function createBot(token, webAppUrl) {
 
   bot.start(async (ctx) => {
     if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
+    await clearSupportMode(ctx.chat.id);
+    if (ctx.startPayload === 'support') {
+      await setSupportMode(ctx.chat.id);
+      await ctx.reply(SUPPORT_INTRO, LOUD);
+      return;
+    }
     await pushOpenButtons(ctx.telegram, ctx.chat.id, webAppUrl, welcomeText);
   });
 
   bot.command('app', async (ctx) => {
     if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
+    await clearSupportMode(ctx.chat.id);
     await pushOpenButtons(ctx.telegram, ctx.chat.id, webAppUrl, 'Запустите мини-приложение кнопкой ниже:');
   });
 
   bot.command('phone', async (ctx) => {
     if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
+    await clearSupportMode(ctx.chat.id);
     await pushOpenButtons(
       ctx.telegram,
       ctx.chat.id,
@@ -52,9 +130,15 @@ export function createBot(token, webAppUrl) {
     );
   });
 
+  bot.command('support', async (ctx) => {
+    if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
+    await setSupportMode(ctx.chat.id);
+    await ctx.reply(SUPPORT_INTRO, LOUD);
+  });
+
   bot.command('help', (ctx) => {
     ctx.reply(
-      '/start – открыть EcoHub\n/app – кнопка запуска приложения\n\nОбъявления, переписка и карта пунктов приёма – внутри мини-приложения.',
+      '/start – открыть EcoHub\n/support – поддержка и связь с командой\n/app – кнопка запуска приложения\n\nОбъявления, переписка и карта пунктов приёма – внутри мини-приложения.',
       LOUD,
     );
   });
@@ -71,6 +155,13 @@ export function createBot(token, webAppUrl) {
     if (isDeveloperUser(ctx.from?.username)) await saveDeveloperChatId(ctx.chat.id);
     if (ctx.message.contact) return;
     if (ctx.message.text?.startsWith('/')) return;
+
+    if (await isSupportMode(ctx.chat.id)) {
+      const result = await sendSupportTicket(bot, ctx.from, ctx.chat.id, ctx.message);
+      await clearSupportMode(ctx.chat.id);
+      await ctx.reply(result.delivered ? SUPPORT_RECEIVED : SUPPORT_FAILED, LOUD);
+      return;
+    }
 
     if (ctx.message.text || ctx.message.photo) {
       await pushOpenButtons(
@@ -148,4 +239,14 @@ export function createBot(token, webAppUrl) {
   });
 
   return bot;
+}
+
+/** Регистрирует список команд бота (меню в Telegram). Идемпотентно. */
+export async function registerBotCommands(telegram) {
+  try {
+    await telegram.setMyCommands(BOT_COMMANDS);
+    console.log('🤖 Команды бота: /start /support /app /help');
+  } catch (err) {
+    console.warn('[support] setMyCommands failed:', err.message);
+  }
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Sticker from './Sticker';
 import BrandMark from './BrandMark';
 import LegalScreen from './LegalScreen';
+import { tg } from '../telegram.js';
 
 function LinkWord({ children, onClick }) {
   return (
@@ -120,6 +121,23 @@ export default function InfoTab({ onChangeTab }) {
           <DocLink onClick={() => setDoc('rules')} title="Правила сообщества" sub="Пользовательское соглашение" />
           <DocLink onClick={() => setDoc('privacy')} title="Политика обработки данных" sub="РБ, Закон № 99-З" />
         </div>
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Sticker name="chat" size={32} />
+          <h3 className="type-title">Поддержка</h3>
+        </div>
+        <p className="type-body mb-3">
+          Вопрос, ошибка или предложение? Откройте чат с ботом — команда ответит.
+        </p>
+        <button
+          type="button"
+          className="btn-primary w-full"
+          onClick={() => tg.openTelegramLink('https://t.me/EcoHubBY_bot?start=support')}
+        >
+          Написать в поддержку
+        </button>
       </div>
     </div>
   );
