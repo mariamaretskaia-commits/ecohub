@@ -48,12 +48,13 @@ function Stop-PortListener($port) {
 
 function Wait-TunnelUrl {
   param([int]$Seconds = 90)
+  $Regex = 'https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com'
   $deadline = (Get-Date).AddSeconds($Seconds)
   while ((Get-Date) -lt $deadline) {
     $paths = @($TunnelLog)
     if (Test-Path $tunnelErr) { $paths += $tunnelErr }
     if (Test-Path $TunnelLog) {
-      $match = Select-String -Path $paths -ErrorAction SilentlyContinue -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' -AllMatches | Select-Object -Last 1
+      $match = Select-String -Path $paths -ErrorAction SilentlyContinue -Pattern $Regex -AllMatches | Select-Object -Last 1
       if ($match) { return $match.Matches[0].Value }
     }
     Start-Sleep -Seconds 2
@@ -90,16 +91,20 @@ $tunnel = Start-Background $npx @("--yes", "cloudflared", "tunnel", "--url", "ht
 $url = Wait-TunnelUrl
 if (-not $url) {
   if (Test-Path $tunnelErr) {
-    $url = (Select-String -Path $tunnelErr -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' -AllMatches | Select-Object -Last 1).Matches[0].Value
+    $url = (Select-String -Path $tunnelErr -Pattern 'https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com' -AllMatches | Select-Object -Last 1).Matches[0].Value
   }
 }
-if (-not $url) {
-  Write-Error "Cloudflare tunnel URL not found. See $TunnelLog and $tunnelErr"
-}
 
-Set-EnvValue "WEBAPP_URL" $url
-$env:WEBAPP_URL = $url
-Write-Host "Public URL: $url"
+# Локальный инстанс пассивен: webhook принадлежит проду (Render).
+# Туннель нужен только для браузера (Mini App), не для владения ботом.
+# Если туннель недоступен — сервер всё равно стартует (без public URL).
+$env:ECO_LOCAL = "1"
+if ($url) {
+  $env:WEBAPP_URL = $url
+  Write-Host "Public URL: $url"
+} else {
+  Write-Host "⚠️  Tunnel unavailable – server starts without public URL"
+}
 Start-Sleep -Seconds 10
 
 # Server with fresh WEBAPP_URL
@@ -108,10 +113,6 @@ $server = Start-Background "node" @("src/index.js") (Join-Path $Root "server") $
 @{ tunnel = $tunnel.Id; server = $server.Id; url = $url; started = (Get-Date).ToString("o") } |
   ConvertTo-Json | Set-Content $PidFile
 
-Start-Sleep -Seconds 6
-Push-Location $Root
-cmd /c "npm run bot:setup > `"$(Join-Path $LogDir 'bot-setup.log')`" 2>&1"
-Pop-Location
-
-Write-Host "✅ EcoHub running. Logs: $LogDir"
-Write-Host "   Bot: @EcoHubBY_bot → $url"
+Write-Host "✅ EcoHub running (local, passive bot). Logs: $LogDir"
+Write-Host "   Mini App: $url"
+Write-Host "   Bot webhook: продикционный (Render), не трогается"

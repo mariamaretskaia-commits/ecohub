@@ -157,7 +157,9 @@ async function main() {
     if (webAppUrl) console.log(`🌐 Public URL: ${webAppUrl}`);
     if (cloudStorageEnabled()) console.log('☁️  Photos → Supabase Storage');
     startPointSync();
-    if (bot && webAppUrl && webAppUrl.startsWith('https://')) {
+    if (process.env.ECO_LOCAL === '1') {
+      console.log('🤖 ECO_LOCAL=1 – webhook остаётся на проде (пассивный режим)');
+    } else if (bot && webAppUrl && webAppUrl.startsWith('https://')) {
       setupTelegram(bot, webAppUrl);
     }
   });
