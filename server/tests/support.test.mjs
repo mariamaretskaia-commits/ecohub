@@ -83,4 +83,5 @@ test('команды бота зарегистрированы для меню',
   assert.ok(commands.includes('support'));
   assert.ok(commands.includes('app'));
   assert.ok(commands.includes('help'));
+  assert.ok(commands.includes('developer_info'));
 });

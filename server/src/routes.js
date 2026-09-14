@@ -8,8 +8,10 @@ import {
   acceptLegal,
   attachDevPhone,
   displayName,
+  exportUserData,
+  deleteUserData,
 } from './users.js';
-import { storeItemPhotos } from './storage.js';
+import { storeItemPhotos, deleteStoredPhotos } from './storage.js';
 import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem } from './trust/pipeline.js';
 
@@ -61,7 +63,16 @@ export function registerUserRoutes(app, authMiddleware) {
   app.post('/api/me/consent', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
-      res.json(await acceptLegal(user.id, req.body));
+      res.json(await acceptLegal(user.id, req.body, req.telegramUser));
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/me/export', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      res.json(await exportUserData(user.id));
     } catch (err) {
       sendError(res, err);
     }
@@ -82,15 +93,7 @@ export function registerUserRoutes(app, authMiddleware) {
   app.delete('/api/me', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
-      const userId = user.id;
-      await run('DELETE FROM chat_messages WHERE sender_id = ?', userId);
-      await run('DELETE FROM item_wants WHERE buyer_id = ?', userId);
-      await run('DELETE FROM items WHERE user_id = ?', userId);
-      await run('DELETE FROM item_favorites WHERE user_id = ?', userId);
-      await run('DELETE FROM eco_transactions WHERE user_id = ?', userId);
-      await run('DELETE FROM recycling_submissions WHERE user_id = ?', userId);
-      await run('DELETE FROM users WHERE id = ?', userId);
-      res.json({ ok: true });
+      res.json(await deleteUserData(user.id));
     } catch (err) {
       sendError(res, err);
     }
@@ -353,6 +356,8 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       item.id);
 
       const updated = await get('SELECT * FROM items WHERE id = ?', item.id);
+      const dropped = currentPhotos.filter((p) => !keep.includes(p));
+      if (dropped.length) await deleteStoredPhotos(dropped);
       res.json(withPhotos(updated));
     } catch (err) {
       sendError(res, err);
@@ -368,9 +373,11 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (Number(item.user_id) !== Number(user.id)) return res.status(403).json({ error: 'Можно удалить только своё объявление' });
       if (item.status !== 'active') return res.status(400).json({ error: 'Объявление уже закрыто' });
 
+      const photosToRemove = parsePhotos(item);
       await run('DELETE FROM item_wants WHERE item_id = ?', item.id);
       await run('DELETE FROM item_favorites WHERE item_id = ?', item.id);
       await run('DELETE FROM items WHERE id = ?', item.id);
+      if (photosToRemove.length) await deleteStoredPhotos(photosToRemove);
       res.json({ success: true });
     } catch (err) {
       sendError(res, err);

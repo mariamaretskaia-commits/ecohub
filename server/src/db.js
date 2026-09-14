@@ -174,9 +174,13 @@ function ensureSqliteSchema(db) {
       contact TEXT,
       status TEXT DEFAULT 'new',
       notified INTEGER DEFAULT 0,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      user_id INTEGER REFERENCES users(id)
     );
   `);
+
+  const suggCols = db.prepare('PRAGMA table_info(point_suggestions)').all().map((c) => c.name);
+  if (!suggCols.includes('user_id')) db.exec('ALTER TABLE point_suggestions ADD COLUMN user_id INTEGER REFERENCES users(id)');
 
   const pointCols = db.prepare('PRAGMA table_info(recycling_points)').all().map((c) => c.name);
   for (const [col, def] of [

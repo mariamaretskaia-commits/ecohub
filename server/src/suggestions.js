@@ -1,4 +1,5 @@
 import { get, run } from './db.js';
+import { findOrCreateUser } from './users.js';
 
 const DEVELOPER_USERNAMES = ['maryssiu'];
 
@@ -54,8 +55,8 @@ export async function notifyDeveloper(bot, text) {
   }
 }
 
-export function registerSuggestionRoutes(app, bot) {
-  app.post('/api/suggest-point', async (req, res) => {
+export function registerSuggestionRoutes(app, bot, auth = (_req, _res, next) => next()) {
+  app.post('/api/suggest-point', auth, async (req, res) => {
     try {
       const { type, address, contact } = req.body || {};
       const access = typeof type === 'string' ? type.trim() : '';
@@ -67,11 +68,13 @@ export function registerSuggestionRoutes(app, bot) {
       if (addr.length > 500) return res.status(400).json({ error: 'Адрес слишком длинный' });
       if (contactText.length > 200) return res.status(400).json({ error: 'Контакт слишком длинный' });
 
+      const userId = req.telegramUser ? (await findOrCreateUser(req.telegramUser).catch(() => null))?.id ?? null : null;
       const r = await run(
-        "INSERT INTO point_suggestions (type, address, contact, status) VALUES (?, ?, ?, 'new')",
+        "INSERT INTO point_suggestions (type, address, contact, status, user_id) VALUES (?, ?, ?, 'new', ?)",
         access,
         addr,
         contactText || null,
+        userId,
       );
 
       const text = [

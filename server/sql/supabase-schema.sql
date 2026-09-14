@@ -134,8 +134,10 @@ CREATE TABLE IF NOT EXISTS point_suggestions (
   contact TEXT,
   status TEXT DEFAULT 'new',
   notified INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id BIGINT REFERENCES users(id) ON DELETE CASCADE
 );
+ALTER TABLE point_suggestions ADD COLUMN IF NOT EXISTS user_id BIGINT REFERENCES users(id) ON DELETE CASCADE;
 
 -- Storage: create public bucket "item-photos" in Dashboard → Storage
 -- (or run via API after creating bucket in UI)

@@ -59,3 +59,28 @@ export async function storeItemPhotos(files) {
 
   return list.map((f) => `/uploads/${f.filename}`);
 }
+
+/** Удаляет файлы фотографий из Supabase Storage или с локального диска. безобиден для data:/обычных URL. */
+export async function deleteStoredPhotos(urls) {
+  const list = (Array.isArray(urls) ? urls : []).filter(Boolean);
+  for (const url of list) {
+    if (String(url).startsWith('data:')) continue;
+    const sb = getClient();
+    if (sb && /\/storage\/v1\/object\/public\//.test(url)) {
+      try {
+        const seg = new URL(url).pathname.split('/').filter(Boolean);
+        const bucket = seg.length >= 6 ? seg[4] : (process.env.SUPABASE_STORAGE_BUCKET || 'item-photos');
+        const name = seg.slice(5).join('/');
+        if (name) {
+          const { error } = await sb.storage.from(bucket).remove([name]);
+          if (error) console.warn('[storage] delete failed:', error.message);
+        }
+      } catch (err) {
+        console.warn('[storage] delete skipped:', err.message);
+      }
+    } else if (url.startsWith('/uploads/')) {
+      const file = path.join(__dirname, '..', 'data', 'uploads', path.basename(url));
+      await fs.promises.unlink(file).catch(() => { /* noop */ });
+    }
+  }
+}

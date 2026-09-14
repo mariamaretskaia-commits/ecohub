@@ -119,7 +119,9 @@ export default function InfoTab({ onChangeTab }) {
         <p className="type-body mb-3">Правовые документы EcoHub:</p>
         <div className="space-y-2">
           <DocLink onClick={() => setDoc('rules')} title="Правила сообщества" sub="Пользовательское соглашение" />
+          <ExtDocLink href="https://ecohub-baoc.onrender.com/rules.html" label="Полный текст правил в браузере" />
           <DocLink onClick={() => setDoc('privacy')} title="Политика обработки данных" sub="РБ, Закон № 99-З" />
+          <ExtDocLink href="https://ecohub-baoc.onrender.com/privacy.html" label="Полный текст политики в браузере" />
         </div>
       </div>
 
@@ -156,6 +158,21 @@ function DocLink({ onClick, title, sub }) {
         <span className="type-kicker block">{sub}</span>
       </span>
       <span className="ml-auto text-mint-700 text-xl font-black" aria-hidden>›</span>
+    </button>
+  );
+}
+
+function ExtDocLink({ href, label }) {
+  return (
+    <button
+      type="button"
+      onClick={() => tg.openLink(href)}
+      className="w-full text-left flex items-center gap-3 rounded-2xl border border-mint-200/70 bg-white/70 px-4 py-2 active:bg-mint-100/70 transition-colors"
+    >
+      <span className="min-w-0">
+        <span className="type-kicker block text-mint-700">Открыть в браузере · {label}</span>
+      </span>
+      <span className="ml-auto text-mint-700 text-xl font-black" aria-hidden>↗</span>
     </button>
   );
 }

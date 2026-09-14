@@ -96,7 +96,7 @@ registerUserRoutes(app, authMiddleware);
 registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware, webAppUrl);
 registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload);
 registerPointRoutes(app);
-registerSuggestionRoutes(app, bot);
+registerSuggestionRoutes(app, bot, optionalAuthMiddleware);
 registerTrustAdminRoutes(app);
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');

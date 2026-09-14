@@ -152,6 +152,7 @@ export const api = {
       body: JSON.stringify({ terms_rules: true, terms_privacy: true }),
     }),
   deleteAccount: () => request('/api/me', { method: 'DELETE' }),
+  exportData: () => request('/api/me/export'),
   verifyDevPhone: (phone) =>
     request('/api/me/phone-dev', { method: 'POST', body: JSON.stringify({ phone }) }),
   getItems: (params = {}) => {

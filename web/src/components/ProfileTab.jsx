@@ -18,6 +18,24 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
   const [openFav, setOpenFav] = useState(false);
   const [editingName, setEditingName] = useState(false);
 
+  const handleExportData = async () => {
+    try {
+      const data = await api.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ecohub-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      tg.showAlert('Архив ваших данных сформирован и сохранён в загрузки.');
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось сформировать архив данных');
+    }
+  };
+
   const handleDeleteProfile = async () => {
     const confirmed = await tg.showConfirm('Удалить профиль и все данные безвозвратно?');
     if (!confirmed) return;
@@ -144,7 +162,14 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
             />
           </div>
         )}
-        <div className="mt-4 pt-3 border-t border-red-100">
+        <div className="mt-4 pt-3 border-t border-red-100 space-y-2">
+          <button
+            type="button"
+            onClick={handleExportData}
+            className="btn-secondary w-full"
+          >
+            Скачать мои данные
+          </button>
           <button
             type="button"
             onClick={handleDeleteProfile}
