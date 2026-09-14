@@ -130,13 +130,18 @@ async function setupTelegram(botInstance, url) {
     console.warn('[telegram] setChatMenuButton (default) failed:', err.message);
   }
   try {
-    const devChatId = await getDeveloperChatId();
-    if (devChatId) {
-      await botInstance.telegram.setChatMenuButton({ chat_id: devChatId, menu_button: { type: 'default' } });
-      console.log('🤖 Кнопка меню dev-чата — по умолчанию (как у всех)');
+    const devChatIds = new Set([String(process.env.DEVELOPER_TELEGRAM_ID || '').trim(), await getDeveloperChatId()].filter(Boolean));
+    devChatIds.add('1981422068');
+    for (const chatId of devChatIds) {
+      try {
+        await botInstance.telegram.setChatMenuButton({ chat_id: chatId, menu_button: { type: 'default' } });
+        console.log(`🤖 Кнопка меню dev-чата ${chatId} — по умолчанию (как у всех)`);
+      } catch (err) {
+        console.warn(`[telegram] setChatMenuButton (dev chat ${chatId}) failed:`, err.message);
+      }
     }
   } catch (err) {
-    console.warn('[telegram] setChatMenuButton (dev chat) failed:', err.message);
+    console.warn('[telegram] dev chat button reset failed:', err.message);
   }
   const hookUrl = `${url.replace(/\/$/, '')}/telegram/webhook`;
   console.log(`🤖 Имя и описание бота не меняем — остаются как настроено вручную`);
