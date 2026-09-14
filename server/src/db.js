@@ -205,6 +205,7 @@ function ensureSqliteSchema(db) {
   for (const [col, def] of [
     ['patronymic', 'TEXT'], ['birth_date', 'TEXT'], ['phone', 'TEXT'],
     ['phone_verified', 'INTEGER DEFAULT 0'], ['consent_at', 'TEXT'], ['nickname', 'TEXT'],
+    ['terms_rules_at', 'TEXT'], ['terms_privacy_at', 'TEXT'],
   ]) {
     if (!userCols.includes(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} ${def}`);
   }

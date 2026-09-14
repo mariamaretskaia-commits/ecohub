@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT,
   phone_verified INTEGER DEFAULT 0,
   consent_at TIMESTAMPTZ,
-  nickname TEXT
+  nickname TEXT,
+  terms_rules_at TIMESTAMPTZ,
+  terms_privacy_at TIMESTAMPTZ
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique
@@ -197,7 +199,10 @@ CREATE TABLE IF NOT EXISTS mod_banned (
   telegram_id TEXT PRIMARY KEY,
   reason TEXT,
   category TEXT,
-  banned_by TEXT,
+banned_by TEXT,
   expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_rules_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_privacy_at TIMESTAMPTZ;

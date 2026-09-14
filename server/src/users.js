@@ -111,10 +111,18 @@ export async function saveProfile(userId, fields, consent) {
   if (!prev?.consent_at && !consent) {
     throw Object.assign(new Error('Нужно согласие, что это имя увидят другие пользователи'), { status: 400 });
   }
+  if (!prev?.terms_rules_at && !fields.terms_rules) {
+    throw Object.assign(new Error('Чтобы сохранить профиль, ознакомьтесь с Правилами сообщества и согласитесь с ними'), { status: 400 });
+  }
+  if (!prev?.terms_privacy_at && !fields.terms_privacy) {
+    throw Object.assign(new Error('Чтобы сохранить профиль, ознакомьтесь с политикой обработки данных и согласитесь с ней'), { status: 400 });
+  }
   await run(`
     UPDATE users
     SET nickname = ?,
-        consent_at = COALESCE(consent_at, datetime('now'))
+        consent_at = COALESCE(consent_at, datetime('now')),
+        terms_rules_at = COALESCE(terms_rules_at, datetime('now')),
+        terms_privacy_at = COALESCE(terms_privacy_at, datetime('now'))
     WHERE id = ?
   `, nickname, userId);
   return publicUser(await getUserById(userId));

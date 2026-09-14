@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import Sticker from './Sticker';
 import BrandMark from './BrandMark';
+import LegalScreen from './LegalScreen';
 
 function LinkWord({ children, onClick }) {
   return (
@@ -14,8 +16,13 @@ function LinkWord({ children, onClick }) {
 }
 
 export default function InfoTab({ onChangeTab }) {
+  const [doc, setDoc] = useState(null);
+
   return (
     <div className="px-4 pt-2 pb-8 space-y-4">
+      {doc && (
+        <LegalScreen docId={doc} onClose={() => setDoc(null)} />
+      )}
       <div className="card p-5 bg-gradient-to-br from-mint-100 to-sun-50">
         <Sticker name="logo" size={88} className="mx-auto mb-2" />
         <h2 className="text-center">
@@ -102,7 +109,36 @@ export default function InfoTab({ onChangeTab }) {
           <LinkWord onClick={() => onChangeTab?.('map')}>«Карту»</LinkWord>
         </p>
       </div>
+
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Sticker name="info" size={32} />
+          <h3 className="type-title">Правила и политика</h3>
+        </div>
+        <p className="type-body mb-3">Правовые документы EcoHub:</p>
+        <div className="space-y-2">
+          <DocLink onClick={() => setDoc('rules')} title="Правила сообщества" sub="Пользовательское соглашение" />
+          <DocLink onClick={() => setDoc('privacy')} title="Политика обработки данных" sub="РБ, Закон № 99-З" />
+        </div>
+      </div>
     </div>
+  );
+}
+
+function DocLink({ onClick, title, sub }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left flex items-center gap-3 rounded-2xl border border-mint-200/70 bg-mint-50/60 px-4 py-3 active:bg-mint-100/70 transition-colors"
+    >
+      <Sticker name="info" size={30} alt="" />
+      <span className="min-w-0">
+        <span className="type-title block truncate">{title}</span>
+        <span className="type-kicker block">{sub}</span>
+      </span>
+      <span className="ml-auto text-mint-700 text-xl font-black" aria-hidden>›</span>
+    </button>
   );
 }
 
