@@ -10,5 +10,4 @@ web/dist
 .cursor
 *.log
 tmp-*
-web/scripts
 .DS_Store
