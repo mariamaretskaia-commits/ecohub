@@ -9,6 +9,7 @@ import { authMiddleware, optionalAuthMiddleware } from './auth.js';
 import { registerUserRoutes, registerItemRoutes, registerPointRoutes } from './routes.js';
 import { registerChatRoutes } from './chat.js';
 import { registerSuggestionRoutes } from './suggestions.js';
+import { registerTrustAdminRoutes } from './trust-admin.js';
 import { createBot } from '../../bot/src/createBot.js';
 import { initDb } from './db.js';
 import { startPointSync } from './sync.js';
@@ -96,6 +97,7 @@ registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware, web
 registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload);
 registerPointRoutes(app);
 registerSuggestionRoutes(app, bot);
+registerTrustAdminRoutes(app);
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');
 if (fs.existsSync(webDist)) {

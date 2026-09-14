@@ -6,6 +6,7 @@
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { TRUST_SQLITE_DDL } from './trust/schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dbUrl = String(process.env.DATABASE_URL || '').trim();
@@ -74,6 +75,9 @@ async function initPg() {
     await pool.query(sql);
     console.log('✅ Postgres schema ready');
   }
+  const { TRUST_PG_DDL } = await import('./trust/schema.js');
+  await pool.query(TRUST_PG_DDL);
+  console.log('✅ Trust & Safety tables ready');
 }
 
 function ensureSqliteSchema(db) {
@@ -227,6 +231,8 @@ function ensureSqliteSchema(db) {
   ]) {
     if (!wantCols.includes(col)) db.exec(`ALTER TABLE item_wants ADD COLUMN ${col} ${def}`);
   }
+
+  db.exec(TRUST_SQLITE_DDL);
 }
 
 let ready;

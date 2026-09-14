@@ -10,6 +10,7 @@ import {
 } from './users.js';
 import { storeItemPhotos } from './storage.js';
 import { ensureWantOpeningMessage } from './chat.js';
+import { moderateItem } from './trust/pipeline.js';
 
 function sendError(res, err) {
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
@@ -252,6 +253,13 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         return res.status(429).json({ error: 'Не больше 5 объявлений в сутки' });
       }
 
+      await moderateItem({
+        senderTg: String(user.telegram_id || user.id),
+        senderName: user.nickname || user.first_name || '',
+        title,
+        description,
+      });
+
       const photos = await storeItemPhotos(req.files);
       const photoUrl = photos[0] || null;
 
@@ -296,6 +304,13 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       }
 
       assertCleanListing(title, description);
+
+      await moderateItem({
+        senderTg: String(user.telegram_id || user.id),
+        senderName: user.nickname || user.first_name || '',
+        title,
+        description,
+      });
 
       const currentPhotos = parsePhotos(item);
       let keep = [];

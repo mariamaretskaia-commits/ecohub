@@ -1,0 +1,116 @@
+/**
+ * Trust & Safety admin router (API для очереди модерации, бана, предупреждений).
+ * Авторизация: заголовок X-Trust-Token (равен TRUST_ADMIN_TOKEN env).
+ */
+import { get, all } from './db.js';
+import {
+  getAdminQueue,
+  getModLog,
+  adminConfirmReport,
+  adminDismissReport,
+  adminBanUser,
+  adminUnbanUser,
+} from './trust/pipeline.js';
+
+function verifyToken(req, res, next) {
+  const token = String(process.env.TRUST_ADMIN_TOKEN || '').trim();
+  if (!token) return res.status(503).json({ error: 'TRUST_ADMIN_TOKEN не настроен' });
+  const incoming = req.headers['x-trust-token'] || req.query.token || '';
+  if (incoming !== token) return res.status(403).json({ error: 'Неверный токен' });
+  return next();
+}
+
+function sendError(res, err) {
+  res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
+}
+
+export function registerTrustAdminRoutes(app) {
+  // Очередь жалоб
+  app.get('/api/trust/admin/alerts', verifyToken, async (req, res) => {
+    try {
+      const queue = await getAdminQueue({
+        status: req.query.status || 'open',
+        limit: Math.min(Number(req.query.limit) || 50, 200),
+      });
+      res.json({ items: queue, count: queue.length });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Подтвердить жалобу
+  app.post('/api/trust/admin/confirm', verifyToken, async (req, res) => {
+    try {
+      const { report_id } = req.body || {};
+      if (!report_id) return res.status(400).json({ error: 'report_id обязателен' });
+      await adminConfirmReport(report_id, req.headers['x-trust-token'] || 'admin');
+      res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Отклонить жалобу
+  app.post('/api/trust/admin/reject', verifyToken, async (req, res) => {
+    try {
+      const { report_id, reason } = req.body || {};
+      if (!report_id) return res.status(400).json({ error: 'report_id обязателен' });
+      await adminDismissReport(report_id, req.headers['x-trust-token'] || 'admin');
+      res.json({ ok: true, reason });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Забанить
+  app.post('/api/trust/admin/ban', verifyToken, async (req, res) => {
+    try {
+      const { telegram_id, reason, category, duration_days } = req.body || {};
+      if (!telegram_id) return res.status(400).json({ error: 'telegram_id обязателен' });
+      await adminBanUser(String(telegram_id), reason, category, 'admin', duration_days);
+      res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Разбанить
+  app.post('/api/trust/admin/unban', verifyToken, async (req, res) => {
+    try {
+      const { telegram_id } = req.body || {};
+      if (!telegram_id) return res.status(400).json({ error: 'telegram_id обязателен' });
+      await adminUnbanUser(telegram_id);
+      res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Детали пользователя (репорты + trust score + лог)
+  app.get('/api/trust/admin/user/:telegramId', verifyToken, async (req, res) => {
+    try {
+      const tid = String(req.params.telegramId);
+      const trust = await get('SELECT * FROM mod_trust WHERE telegram_id = ?', tid);
+      const reports = await all(
+        "SELECT * FROM mod_reports WHERE sender_telegram_id = ? ORDER BY created_at DESC LIMIT 100",
+        tid,
+      );
+      const modMessages = await all(
+        "SELECT * FROM mod_messages WHERE sender_telegram_id = ? ORDER BY created_at DESC LIMIT 50",
+        tid,
+      );
+      const banned = await get("SELECT * FROM mod_banned WHERE telegram_id = ?", tid);
+      const logs = await getModLog({ targetTelegramId: tid, limit: 50 });
+      res.json({
+        trust: trust || null,
+        reports_count: reports.length,
+        reports,
+        mod_messages: modMessages,
+        banned: banned || null,
+        logs,
+      });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+}

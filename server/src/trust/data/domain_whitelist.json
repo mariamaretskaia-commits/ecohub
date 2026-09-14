@@ -1,0 +1,12 @@
+{
+  "wildberries.ru": {"allow_subdomains": true, "purpose": "price_check"},
+  "ozon.ru": {"allow_subdomains": true, "purpose": "price_check"},
+  "avito.ru": {"allow_subdomains": true, "purpose": "price_check"},
+  "onliner.by": {"allow_subdomains": true, "purpose": "price_check"},
+  "kufar.by": {"allow_subdomains": true, "purpose": "price_check"},
+  "market.yandex.ru": {"allow_subdomains": true, "purpose": "price_check"},
+  "beru.ru": {"allow_subdomains": false, "purpose": "price_check"},
+  "aliexpress.com": {"allow_subdomains": true, "purpose": "price_check"},
+  "ebay.com": {"allow_subdomains": true, "purpose": "price_check"},
+  "ebay.by": {"allow_subdomains": true, "purpose": "price_check"}
+}

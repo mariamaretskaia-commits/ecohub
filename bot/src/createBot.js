@@ -1,5 +1,7 @@
 import { Telegraf, Markup } from 'telegraf';
 import { isDeveloperUser, saveDeveloperChatId } from '../../server/src/suggestions.js';
+import { get, run } from '../../server/src/db.js';
+import { insertReport, insertBan, countOpenReports } from '../../server/src/trust/store.js';
 
 const LOUD = { disable_notification: false };
 
@@ -77,6 +79,67 @@ export function createBot(token, webAppUrl) {
         webAppUrl,
         'Объявления и переписка – в мини-приложении EcoHub. Запустите его кнопкой ниже.',
       );
+    }
+  });
+
+  bot.on('callback_query', async (ctx) => {
+    try {
+      const data = String(ctx.callbackQuery?.data || '');
+      const [action, idRaw] = data.split(':');
+      const msgId = Number(idRaw);
+      if (!msgId || !['report', 'appeal'].includes(action)) {
+        return await ctx.answerCbQuery('Неизвестная команда');
+      }
+      const modMsg = await get('SELECT * FROM mod_messages WHERE id = ?', msgId);
+      if (!modMsg) return await ctx.answerCbQuery('Сообщение уже удалено');
+
+      const reporterTg = String(ctx.from?.id || '');
+
+      if (action === 'report') {
+        await insertReport({
+          msgId,
+          senderTelegramId: modMsg.sender_telegram_id,
+          reporterTelegramId: reporterTg,
+          category: 'user_report',
+          source: 'user',
+        });
+        const openCount = await countOpenReports(modMsg.sender_telegram_id);
+        if (openCount >= 3) {
+          await insertBan({
+            telegramId: modMsg.sender_telegram_id,
+            reason: `3+ открытых жалоб за 30 дней (репорт от ${reporterTg})`,
+            category: 'user_report',
+            bannedBy: 'system',
+          });
+          await run(
+            "INSERT INTO mod_log (event, target_telegram_id, actor, message_id, detail_json) VALUES ('auto_ban', ?, 'system', ?, ?)",
+            String(modMsg.sender_telegram_id || ''),
+            msgId,
+            JSON.stringify({ reason: '3+ open reports/30d via callback', reports: openCount }),
+          );
+          await ctx.answerCbQuery('Жалоба принята. Пользователь автоматически заблокирован.');
+        } else {
+          await ctx.answerCbQuery('Спасибо, жалоба принята.');
+        }
+      } else {
+        await run(
+          "UPDATE mod_reports SET status = 'dismissed', resolved_at = datetime('now'), resolved_by = ? WHERE message_id = ? AND status = 'open'",
+          reporterTg,
+          msgId,
+        );
+        await run(
+          "INSERT INTO mod_log (event, target_telegram_id, actor, message_id, detail_json) VALUES ('report_appeal', ?, 'system', ?, ?)",
+          String(modMsg.sender_telegram_id || ''),
+          msgId,
+          JSON.stringify({ appealer: reporterTg }),
+        );
+        await ctx.answerCbQuery('Спасибо, снято с проверки.');
+      }
+    } catch (err) {
+      console.error('Callback error:', err.message);
+      try {
+        await ctx.answerCbQuery('Произошла ошибка.');
+      } catch { /* noop */ }
     }
   });
 

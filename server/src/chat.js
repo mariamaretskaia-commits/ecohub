@@ -2,6 +2,7 @@ import { get, all, run } from './db.js';
 import { findOrCreateUser, displayName, isProfileComplete } from './users.js';
 import { storeItemPhotos } from './storage.js';
 import { pushOpenButtons } from '../../bot/src/createBot.js';
+import { moderateChatMessage } from './trust/pipeline.js';
 
 const CHAT_NOTIFY =
   'У вас есть новые сообщения. Проверьте «Чат» в приложении EcoHub.';
@@ -195,6 +196,31 @@ export async function sendChatMessage({ wantId, sender, body, photoUrl, bot, web
   }
   if (want.item_status !== 'active') {
     const err = new Error('Переписка закрыта: вещь уже отдана');
+    err.status = 400;
+    throw err;
+  }
+
+  const existingMessages = await get(
+    'SELECT id FROM chat_messages WHERE want_id = ? LIMIT 1',
+    want.id,
+  );
+  const isFirstMessage = !existingMessages && trimmed === WANT_OPENING_MESSAGE;
+
+  const modResult = await moderateChatMessage({
+    senderTg: String(sender.telegram_id || sender.id),
+    receiverTg: Number(want.buyer_id) === Number(sender.id) ? want.owner_tg : want.buyer_tg,
+    senderName: sender.nickname || sender.first_name || '',
+    wantId: want.id,
+    text: trimmed || '',
+    photoUrl: photo || null,
+    firstMessage: Boolean(isFirstMessage),
+    bot,
+  });
+
+  if (modResult.verdict === 'block') {
+    const err = new Error(modResult.category === 'phishing'
+      ? 'Сообщение отклонено: обнаружена попытка фишинга'
+      : 'Сообщение отклонено модерацией. Проверьте текст и попробуйте переформулировать.');
     err.status = 400;
     throw err;
   }
@@ -434,6 +460,21 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) 
       const trimmed = String(req.body?.body || '').trim();
       if (!trimmed) return res.status(400).json({ error: 'Введите сообщение' });
       if (trimmed.length > 2000) return res.status(400).json({ error: 'Слишком длинное сообщение' });
+
+      const editWant = await getWantAccess(row.want_id, user.id);
+      const modResult = await moderateChatMessage({
+        senderTg: String(user.telegram_id || user.id),
+        receiverTg: Number(editWant?.buyer_id) === Number(user.id) ? editWant?.owner_tg : editWant?.buyer_tg,
+        senderName: user.nickname || user.first_name || '',
+        wantId: row.want_id,
+        text: trimmed,
+        photoUrl: row.photo_url,
+        firstMessage: false,
+        bot,
+      });
+      if (modResult.verdict === 'block') {
+        return res.status(400).json({ error: 'Сообщение отклонено модерацией. Проверьте текст и попробуйте переформулировать.' });
+      }
 
       await run(`
         UPDATE chat_messages

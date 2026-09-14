@@ -55,3 +55,31 @@ npm run host
 ## Лицензия
 
 MIT — конкурс «100 идей для Беларуси», пилот г. Гродно.
+
+## Модерация Trust & Safety (встроена в сервер)
+
+Единый механизм модерации объявлений и чата переписки: словарный фильтр (наркотики, оружие, документы, фишинг, платёжные триггеры) + детектор ссылок с whitelist доставщиков + trust-скоринг отправителя + авто-бан при 3+ жалобах за 30 дней.
+
+- **block** — объявление/сообщение отклоняется (HTTP 400), создаётся жалоба в очередь
+- **flag** — пропускается, попадает в очередь модерации, получатель видит кнопки в боте (жалоба / «это нормально»)
+- **clean** — доставляется
+
+### Переменные окружения
+
+| Переменная | Назначение |
+|---|---|
+| `TRUST_ADMIN_TOKEN` | Токен админ-API (заголовок `X-Trust-Token`) |
+| `TRUST_ADMIN_IDS` | Telegram id админов модерации (через запятую) |
+| `OPENAI_API_KEY` | Опционально: AI-модерация текста/картинок. Без ключа — только словарный фильтр |
+| `TRUST_BASE` / `TRUST_LOW_MIN` / `TRUST_HIGH_MAX` | Пороги trust-скоринга (по умолчанию 50 / 70 / 40) |
+
+### Админский API (все с `X-Trust-Token`)
+
+- `GET /api/trust/admin/alerts` — открытая очередь модерации
+- `POST /api/trust/admin/confirm` `{report_id}` — подтвердить жалобу
+- `POST /api/trust/admin/reject` `{report_id, reason}` — отклонить
+- `POST /api/trust/admin/ban` `{telegram_id, reason, category, duration_days?}` — бан
+- `POST /api/trust/admin/unban` `{telegram_id}` — разбан
+- `GET /api/trust/admin/user/:telegramId` — досье пользователя (trust, жалобы, лог)
+
+Тесты: `node --test tests/trust.test.mjs` (чистые модули) и `node tests/e2e.mjs` (полный цикл против SQLite).

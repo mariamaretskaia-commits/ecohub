@@ -25,7 +25,7 @@ const schemaPath = process.env.SCHEMA_PATH || path.join(__dirname, 'sql', 'supab
 const schema = existsSync(schemaPath) ? readFileSync(schemaPath, 'utf8') : '';
 
 // tables in FK-safe order
-const tables = ['users', 'items', 'recycling_points', 'eco_transactions', 'recycling_submissions', 'item_wants', 'item_favorites', 'chat_messages'];
+const tables = ['users', 'items', 'recycling_points', 'eco_transactions', 'recycling_submissions', 'item_wants', 'item_favorites', 'chat_messages', 'mod_messages', 'mod_reports', 'mod_log', 'mod_trust', 'mod_banned'];
 
 const lines = [];
 lines.push('-- EcoHub PostgreSQL dump (generated ' + new Date().toISOString() + ')');
@@ -46,7 +46,10 @@ for (const t of tables) {
 }
 
 const dumpTable = async (t) => {
-  const res = await client.query(`SELECT * FROM ${t} ORDER BY id`);
+  const orderCol = (t === 'mod_trust' || t === 'mod_banned' || t === 'mod_reports' || t === 'mod_log' || t === 'mod_messages')
+    ? (t === 'mod_trust' || t === 'mod_banned') ? 'telegram_id' : 'id'
+    : 'id';
+  const res = await client.query(`SELECT * FROM ${t} ORDER BY ${orderCol}`);
   const rows = res.rows;
   if (!rows.length) return;
   lines.push(`-- Table: ${t} (${rows.length} rows)`);
