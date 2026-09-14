@@ -8,7 +8,7 @@ import fs from 'fs';
 import { authMiddleware, optionalAuthMiddleware } from './auth.js';
 import { registerUserRoutes, registerItemRoutes, registerPointRoutes } from './routes.js';
 import { registerChatRoutes } from './chat.js';
-import { registerSuggestionRoutes } from './suggestions.js';
+import { registerSuggestionRoutes, getDeveloperChatId } from './suggestions.js';
 import { registerTrustAdminRoutes } from './trust-admin.js';
 import { createBot, registerBotCommands } from '../../bot/src/createBot.js';
 import { initDb } from './db.js';
@@ -123,6 +123,21 @@ async function setupTelegram(botInstance, url) {
     console.warn('Telegram getMe failed:', err.message);
   }
   await registerBotCommands(botInstance.telegram);
+  try {
+    await botInstance.telegram.setChatMenuButton({ menu_button: { type: 'commands' } });
+    console.log('🤖 Кнопка меню (все) — список команд');
+  } catch (err) {
+    console.warn('[telegram] setChatMenuButton (default) failed:', err.message);
+  }
+  try {
+    const devChatId = await getDeveloperChatId();
+    if (devChatId) {
+      await botInstance.telegram.setChatMenuButton({ chat_id: devChatId, menu_button: { type: 'default' } });
+      console.log('🤖 Кнопка меню dev-чата — по умолчанию (как у всех)');
+    }
+  } catch (err) {
+    console.warn('[telegram] setChatMenuButton (dev chat) failed:', err.message);
+  }
   const hookUrl = `${url.replace(/\/$/, '')}/telegram/webhook`;
   console.log(`🤖 Имя и описание бота не меняем — остаются как настроено вручную`);
   for (let attempt = 0; attempt < 6; attempt += 1) {

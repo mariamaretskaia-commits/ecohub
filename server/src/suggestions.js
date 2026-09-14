@@ -36,6 +36,10 @@ async function developerChatId() {
   }
 }
 
+export async function getDeveloperChatId() {
+  return developerChatId();
+}
+
 /** Отправляет личное сообщение разработчику. Предложения не видят другие пользователи. */
 export async function notifyDeveloper(bot, text) {
   const chatId = await developerChatId();
