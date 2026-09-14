@@ -7,7 +7,7 @@ process.env.DATABASE_URL = '';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb, run, get } from '../src/db.js';
-import { saveProfile, findOrCreateUser } from '../src/users.js';
+import { saveProfile, acceptLegal, findOrCreateUser } from '../src/users.js';
 
 await initDb();
 await run('DELETE FROM users WHERE telegram_id LIKE \'terms-%\'');
@@ -48,4 +48,22 @@ test('saveProfile: оба согласия фиксируются времене
   assert.ok(row.terms_rules_at, 'terms_rules_at должен быть установлен');
   assert.ok(row.terms_privacy_at, 'terms_privacy_at должен быть установлен');
   assert.ok(row.consent_at, 'consent_at должен быть установлен');
+});
+
+test('acceptLegal: требует оба согласия', async () => {
+  const user = await freshUser();
+  await assert.rejects(
+    () => acceptLegal(user.id, { terms_privacy: true }),
+    (err) => err.status === 400 && /Правилами сообщества/.test(err.message),
+  );
+});
+
+test('acceptLegal: штампует согласия без изменения имени', async () => {
+  const user = await freshUser();
+  await run('UPDATE users SET nickname = ? WHERE id = ?', 'Гейт Тестер', user.id);
+  const saved = await acceptLegal(user.id, { terms_rules: true, terms_privacy: true });
+  assert.equal(saved.nickname, 'Гейт Тестер');
+  const row = await get('SELECT terms_rules_at, terms_privacy_at FROM users WHERE id = ?', user.id);
+  assert.ok(row.terms_rules_at);
+  assert.ok(row.terms_privacy_at);
 });

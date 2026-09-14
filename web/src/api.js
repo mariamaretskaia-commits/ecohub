@@ -146,6 +146,11 @@ async function uploadItem(path, method, formData) {
 export const api = {
   getMe: () => request('/api/me'),
   saveProfile: (body) => request('/api/me', { method: 'PATCH', body: JSON.stringify(body) }),
+  acceptLegal: () =>
+    request('/api/me/consent', {
+      method: 'POST',
+      body: JSON.stringify({ terms_rules: true, terms_privacy: true }),
+    }),
   deleteAccount: () => request('/api/me', { method: 'DELETE' }),
   verifyDevPhone: (phone) =>
     request('/api/me/phone-dev', { method: 'POST', body: JSON.stringify({ phone }) }),

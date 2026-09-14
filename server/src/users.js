@@ -128,6 +128,22 @@ export async function saveProfile(userId, fields, consent) {
   return publicUser(await getUserById(userId));
 }
 
+export async function acceptLegal(userId, fields) {
+  if (!fields?.terms_rules) {
+    throw Object.assign(new Error('Чтобы пользоваться EcoHub, ознакомьтесь с Правилами сообщества и согласитесь с ними'), { status: 400 });
+  }
+  if (!fields?.terms_privacy) {
+    throw Object.assign(new Error('Чтобы пользоваться EcoHub, ознакомьтесь с политикой обработки данных и согласитесь с ней'), { status: 400 });
+  }
+  await run(`
+    UPDATE users
+    SET terms_rules_at = COALESCE(terms_rules_at, datetime('now')),
+        terms_privacy_at = COALESCE(terms_privacy_at, datetime('now'))
+    WHERE id = ?
+  `, userId);
+  return publicUser(await getUserById(userId));
+}
+
 export async function attachOwnPhone(telegramUser, contact) {
   if (!contact?.phone_number) {
     throw Object.assign(new Error('Нет номера'), { status: 400 });

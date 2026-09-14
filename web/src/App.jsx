@@ -9,6 +9,7 @@ import InfoTab from './components/InfoTab';
 import ChatTab from './components/ChatTab';
 import Sticker from './components/Sticker';
 import BrandMark from './components/BrandMark';
+import LegalGate from './components/LegalGate';
 
 export default function App() {
   const [tab, setTab] = useState('profile');
@@ -179,6 +180,10 @@ export default function App() {
     }, 700);
   }, []);
 
+  const legalPending = Boolean(
+    user && user.profile_complete && !(user.terms_rules_at && user.terms_privacy_at),
+  );
+
   return (
     <div className="relative min-h-screen pb-28 overflow-x-hidden">
       <div className="organic-blob bg-mint-200/60 w-56 h-56 -top-16 -right-16" />
@@ -238,6 +243,8 @@ export default function App() {
               </p>
             </div>
           </div>
+        ) : legalPending ? (
+          <LegalGate onDone={refreshUser} />
         ) : (
           <>
             {tab === 'feed' && (
@@ -267,7 +274,7 @@ export default function App() {
         )}
       </main>
 
-      {!loadError && !(loading && !user) && (
+      {!loadError && !(loading && !user) && !legalPending && (
         <BottomNav active={tab} onChange={changeTab} chatUnread={chatUnread} />
       )}
     </div>

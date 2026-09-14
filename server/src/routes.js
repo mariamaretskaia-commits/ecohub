@@ -5,6 +5,7 @@ import {
   publicUser,
   isProfileComplete,
   saveProfile,
+  acceptLegal,
   attachDevPhone,
   displayName,
 } from './users.js';
@@ -52,6 +53,15 @@ export function registerUserRoutes(app, authMiddleware) {
       const user = await findOrCreateUser(req.telegramUser);
       const saved = await saveProfile(user.id, req.body, Boolean(req.body.consent));
       res.json(saved);
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/me/consent', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      res.json(await acceptLegal(user.id, req.body));
     } catch (err) {
       sendError(res, err);
     }
