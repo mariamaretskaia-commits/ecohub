@@ -84,7 +84,7 @@ export default function ProfileForm({ user, onSaved, intro, compact = false, onC
               onChange={(e) => setConsent(e.target.checked)}
             />
             <span className="type-meta">
-              Согласен, что это имя увидят другие пользователи EcoHub.
+              Согласен, что это имя увидят другие пользователи EcoHub – обязательно.
             </span>
           </label>
         )}
