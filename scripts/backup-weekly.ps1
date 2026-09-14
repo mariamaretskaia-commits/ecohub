@@ -42,15 +42,21 @@ try {
   $renderCli = Get-RenderCli
   $currentIp = Resolve-PublicIp
   if ($renderCli -and $currentIp) {
-    $listJson = & $renderCli postgres list -o json 2>&1 | Out-String
-    $listed = ($listJson | ConvertFrom-Json).data[0].ipAllowList |
+    $pgIdFile = "C:\Users\Admin\eco-db-backups\.pg-id.txt"
+    $pgName = "ecohub-db"
+    if (Test-Path -LiteralPath $pgIdFile) {
+      $pgName = (Get-Content -LiteralPath $pgIdFile -Raw).Trim()
+    }
+    $targetJson = & $renderCli postgres get $pgName -o json 2>&1 | Out-String
+    $target = $targetJson | ConvertFrom-Json
+    $listed = @($target.data.ipAllowList) |
       ForEach-Object { $_.cidrBlock }
     $want = "$currentIp/32"
     if ($listed -contains $want) {
       Write-Output "allow-list OK: $want"
     } else {
       Write-Output "allow-list stale ($($listed -join ', ')) -> updating to $want"
-      & $renderCli postgres update ecohub-db `
+      & $renderCli postgres update $pgName `
         --ip-allow-list "cidr=$want,description=PC backup current" --confirm | Out-String | Write-Output
       if ($LASTEXITCODE -ne 0) { Write-Output "WARN: allow-list update failed (exit $LASTEXITCODE)" }
     }
