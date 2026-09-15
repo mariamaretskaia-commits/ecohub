@@ -38,6 +38,7 @@ function adaptSql(sql) {
   s = s.replace(/datetime\('now',\s*'\+21 days'\)/gi, "(NOW() + INTERVAL '21 days')");
   s = s.replace(/datetime\('now',\s*'\+7 days'\)/gi, "(NOW() + INTERVAL '7 days')");
   s = s.replace(/datetime\('now',\s*'-1 day'\)/gi, "(NOW() - INTERVAL '1 day')");
+  s = s.replace(/datetime\('now',\s*'-30 day'\)/gi, "(NOW() - INTERVAL '30 day')");
   s = s.replace(/datetime\('now'\)/gi, 'NOW()');
   if (/INSERT INTO item_wants/i.test(s) && !/ON CONFLICT/i.test(s)) {
     s = `${s.replace(/;?\s*$/, '')} ON CONFLICT (item_id, buyer_id) DO NOTHING`;
@@ -51,7 +52,10 @@ function adaptSql(sql) {
 async function initSqlite() {
   const dataDir = path.join(__dirname, '..', 'data');
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  const dbPath = path.join(dataDir, 'eco-grodno.db');
+  // Тесты задают DATABASE_URL='' — изолируемся в память, чтобы параллельный
+  // запуск node --test не ловил «database is locked» на общем файле.
+  const dbPath =
+    process.env.DATABASE_URL === '' ? ':memory:' : path.join(dataDir, 'eco-grodno.db');
   try {
     const Database = (await import('better-sqlite3')).default;
     sqlite = new Database(dbPath);

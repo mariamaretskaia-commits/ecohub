@@ -8,20 +8,24 @@ import LocationSelect from './LocationSelect';
 
 const MAX_PHOTOS = 5;
 
-export default function ItemForm({ item = null, onClose, onSaved }) {
+export default function ItemForm({ item = null, initial = null, onClose, onSaved }) {
   const editing = Boolean(item?.id);
   const photoInputId = useId();
   const [form, setForm] = useState({
-    title: item?.title || '',
+    title: item?.title || initial?.title || '',
     description: item?.description || '',
-    oblast: item?.oblast || 'Гродненская область',
-    settlement: item?.settlement || 'Гродно',
-    district: item?.district || '',
-    category: item?.category || 'Одежда',
+    oblast: item?.oblast || initial?.location?.oblast || initial?.oblast || 'Гродненская область',
+    settlement: item?.settlement || initial?.location?.settlement || initial?.settlement || 'Гродно',
+    district: item?.district || initial?.location?.district || initial?.district || '',
+    category: item?.category || initial?.category || 'Одежда',
   });
-  const [photos, setPhotos] = useState(() =>
-    itemPhotos(item).map((url) => ({ url, preview: photoSrc(url) })),
-  );
+  const [photos, setPhotos] = useState(() => {
+    const base = itemPhotos(item).map((url) => ({ url, preview: photoSrc(url) }));
+    if (initial?.file) {
+      base.unshift({ file: initial.file, preview: URL.createObjectURL(initial.file) });
+    }
+    return base;
+  });
   const [loading, setLoading] = useState(false);
 
   const handlePhoto = async (e) => {
@@ -172,6 +176,7 @@ export default function ItemForm({ item = null, onClose, onSaved }) {
           district={form.district}
           onChange={(loc) => setForm({ ...form, ...loc })}
           required
+          enableGeo
         />
 
         <label className="block">

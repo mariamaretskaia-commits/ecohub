@@ -12,7 +12,7 @@ function _rank(s) { return SEVERITY_RANK[s] || 1; }
 export async function isBanned(telegramId) {
   if (!telegramId) return false;
   const row = await get(
-    "SELECT telegram_id FROM mod_banned WHERE telegram_id = ? AND (expires_at IS NULL OR expires_at = '' OR expires_at > datetime('now'))",
+    "SELECT telegram_id FROM mod_banned WHERE telegram_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))",
     String(telegramId),
   );
   return Boolean(row);

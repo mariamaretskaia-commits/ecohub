@@ -4,7 +4,7 @@ import ItemCard from './ItemCard';
 import Sticker from './Sticker';
 import LocationSelect from './LocationSelect';
 
-export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) {
+export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat, onOpenVision }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterLocation, setFilterLocation] = useState({ oblast: '', settlement: '', district: '' });
@@ -51,13 +51,22 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) 
       <div className="card p-4 mb-4 bg-gradient-to-br from-mint-100 to-sun-50">
         <div className="flex items-center gap-3">
           <Sticker name="share" size={64} alt="передача вещи" />
-          <div>
+          <div className="flex-1">
             <h2 className="type-brand leading-tight">Даром</h2>
             <p className="type-body mt-1.5">
               Вещи отдают бесплатно. Нажмите «Хочу взять» – откроется чат.
             </p>
           </div>
         </div>
+        {onOpenVision && (
+          <button
+            type="button"
+            onClick={onOpenVision}
+            className="btn-secondary mt-3 w-full"
+          >
+            Разобрать вещи
+          </button>
+        )}
       </div>
 
       <div className="card p-4 mb-4 space-y-3">

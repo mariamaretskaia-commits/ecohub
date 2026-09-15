@@ -17,8 +17,18 @@ import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem } from './trust/pipeline.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
+import { classifyWithZhipu, planRecyclingRoute, visionAvailable } from './vision.js';
 
 function sendError(res, err) {
+  const req = res.req;
+  console.error(
+    `[error] ${req?.method || '?'} ${req?.originalUrl || req?.url || '?'} ->`,
+    err?.message || err,
+  );
+  if (req && err?.stack) console.error(err.stack);
+  if (/^(22P02|22P01|22007|22008)$/.test(String(err?.code || ''))) {
+    return res.status(400).json({ error: 'Не удалось сохранить данные. Мы уже знаем об ошибке — попробуйте чуть позже.' });
+  }
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
 }
 
@@ -611,6 +621,55 @@ export function registerPointRoutes(app) {
       const point = await get('SELECT * FROM recycling_points WHERE id = ?', req.params.id);
       if (!point) return res.status(404).json({ error: 'Not found' });
       res.json(point);
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+}
+
+const VISION_MAX_BYTES = 5 * 1024 * 1024;
+
+export function registerVisionRoutes(app, authMiddleware, upload) {
+  app.post('/api/vision/classify', authMiddleware, upload.single('image'), async (req, res) => {
+    try {
+      if (!visionAvailable()) return res.status(503).json({ error: 'Распознавание недоступно' });
+
+      let imageRef = null;
+      if (req.file) {
+        if (req.file.size > VISION_MAX_BYTES) {
+          return res.status(400).json({ error: 'Фото слишком большое (макс. 5 МБ)' });
+        }
+        const mime = req.file.mimetype || 'image/jpeg';
+        let body = req.file.buffer;
+        if (!body && req.file.path) body = await (await import('fs')).promises.readFile(req.file.path);
+        if (body) imageRef = `data:${mime};base64,${body.toString('base64')}`;
+      } else {
+        imageRef = String(req.body?.imageUrl || '').trim() || null;
+      }
+
+      if (!imageRef) return res.status(400).json({ error: 'Изображение обязательно' });
+
+      const result = await classifyWithZhipu(imageRef);
+      if (result.fallback) {
+        return res.json({
+          fallback: 'clip',
+          ...(result.reason ? { reason: result.reason } : {}),
+          ...(result.error ? { error: result.error } : {}),
+        });
+      }
+      res.json(result);
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/vision/route', authMiddleware, async (req, res) => {
+    try {
+      const { categories, lat, lng } = req.body || {};
+      if (!Array.isArray(categories) || !categories.length) {
+        return res.status(400).json({ error: 'Категории обязательны' });
+      }
+      res.json(await planRecyclingRoute(categories, lat, lng));
     } catch (err) {
       sendError(res, err);
     }

@@ -6,7 +6,7 @@ import cors from 'cors';
 import multer from 'multer';
 import fs from 'fs';
 import { authMiddleware, optionalAuthMiddleware } from './auth.js';
-import { registerUserRoutes, registerItemRoutes, registerPointRoutes } from './routes.js';
+import { registerUserRoutes, registerItemRoutes, registerPointRoutes, registerVisionRoutes } from './routes.js';
 import { registerChatRoutes } from './chat.js';
 import { registerSuggestionRoutes, getDeveloperChatId } from './suggestions.js';
 import { registerTrustAdminRoutes } from './trust-admin.js';
@@ -99,6 +99,7 @@ registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload);
 registerPointRoutes(app);
 registerSuggestionRoutes(app, bot, optionalAuthMiddleware);
 registerTrustAdminRoutes(app);
+registerVisionRoutes(app, authMiddleware, upload);
 
 const webDist = path.join(__dirname, '..', '..', 'web', 'dist');
 if (fs.existsSync(webDist)) {

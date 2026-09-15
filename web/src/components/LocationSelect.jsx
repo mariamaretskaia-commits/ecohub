@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { OBLASTS, getSettlements, getDistricts } from '../locations';
+import { detectLocation } from '../geo';
 
 export default function LocationSelect({
   oblast,
@@ -10,12 +12,33 @@ export default function LocationSelect({
   allowEmpty = false,
   multiDistrict = false,
   compact = false,
+  enableGeo = false,
 }) {
   const settlements = getSettlements(oblast);
   const districtOptions = getDistricts(oblast, settlement);
   const selectedDistricts = multiDistrict ? (districts || []) : (district ? [district] : []);
   const grodnoCity = settlement === 'Гродно';
   const exclusiveDistrict = grodnoCity;
+  const [geo, setGeo] = useState({ state: 'idle', result: null });
+
+  const runGeo = async () => {
+    if (geo.state === 'busy') return;
+    setGeo({ state: 'busy', result: null });
+    const result = await detectLocation();
+    if (!result) {
+      setGeo({ state: 'error', result: null });
+      return;
+    }
+    setGeo({ state: 'done', result });
+    const patch = {};
+    if (result.oblast) patch.oblast = result.oblast;
+    if (result.settlement) {
+      patch.settlement = result.settlement;
+      patch.district = result.district || '';
+      patch.districts = result.district ? [result.district] : [];
+    }
+    onChange(patch);
+  };
 
   const emit = (next) => {
     onChange({
@@ -41,6 +64,33 @@ export default function LocationSelect({
 
   return (
     <div className={compact ? 'space-y-2' : 'space-y-3'}>
+      {enableGeo && !allowEmpty && (
+        <div>
+          <button
+            type="button"
+            onClick={runGeo}
+            disabled={geo.state === 'busy'}
+            className="btn-secondary w-full"
+          >
+            {geo.state === 'busy'
+              ? 'Определяем…'
+              : geo.state === 'done'
+                ? 'Мой район определён ✓'
+                : 'Определить мой район'}
+          </button>
+          {geo.state === 'done' && geo.result && (
+            <p className="type-empty text-xs mt-1.5">
+              Определено: {geo.result.settlement || geo.result.oblast}
+              {geo.result.district ? ` · ${geo.result.district}` : ''}
+            </p>
+          )}
+          {geo.state === 'error' && (
+            <p className="type-empty text-xs mt-1.5">
+              Не удалось определить местоположение — выберите вручную
+            </p>
+          )}
+        </div>
+      )}
       <div className={compact ? 'grid grid-cols-2 gap-2' : 'space-y-3'}>
       <label className="block min-w-0">
         <span className="type-label">Область</span>

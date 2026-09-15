@@ -23,3 +23,5 @@ services:
         sync: false
       - key: VITE_CARTO_API_KEY
         sync: false
+      - key: ZHIPU_API_KEY
+        sync: false

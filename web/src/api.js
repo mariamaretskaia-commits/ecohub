@@ -211,6 +211,16 @@ export const api = {
     request(`/api/chat/messages/${messageId}`, { method: 'DELETE' }),
   deleteChatThread: (wantId) =>
     request(`/api/chat/threads/${wantId}`, { method: 'DELETE' }),
+  classifyImage: (file) => {
+    const formData = new FormData();
+    formData.append('image', file, file.name || 'photo.jpg');
+    return uploadItem('/api/vision/classify', 'POST', formData);
+  },
+  planRecycling: ({ categories, lat, lng } = {}) =>
+    request('/api/vision/route', {
+      method: 'POST',
+      body: JSON.stringify({ categories, lat, lng }),
+    }),
 };
 
 export const CATEGORIES = [
