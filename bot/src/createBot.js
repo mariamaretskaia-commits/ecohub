@@ -11,6 +11,7 @@ export const BOT_COMMANDS = [
   { command: 'app', description: 'Запустить мини-приложение' },
   { command: 'help', description: 'Список команд' },
   { command: 'developer_info', description: 'Разработчик и ваши права' },
+  { command: 'privacy', description: 'Политика обработки данных' },
 ];
 
 const SUPPORT_MODE_PREFIX = 'support_mode_';
@@ -180,7 +181,7 @@ export function createBot(token, webAppUrl) {
 
   bot.command('help', (ctx) => {
     ctx.reply(
-      '/start – открыть EcoHub\n/support – поддержка и связь с командой\n/app – кнопка запуска приложения\n/developer_info – разработчик и ваши права\n\nОбъявления, переписка и карта пунктов приёма – внутри мини-приложения.',
+      '/start – открыть EcoHub\n/support – поддержка и связь с командой\n/app – кнопка запуска приложения\n/developer_info – разработчик и ваши права\n/privacy – политика обработки данных\n\nОбъявления, переписка и карта пунктов приёма – внутри мини-приложения.',
       LOUD,
     );
   });
@@ -201,6 +202,15 @@ export function createBot(token, webAppUrl) {
         '',
         'Ваши права: скачать копию своих данных («Профиль» → «Скачать мои данные») или удалить их в любой момент («Профиль» → «Удалить профиль»). Ответ на запросы — в срок до 15 дней.',
       ].join('\n'),
+      LOUD,
+    );
+  });
+
+  bot.command('privacy', async (ctx) => {
+    await clearSupportMode(ctx.chat.id);
+    const base = String(webAppUrl || '').replace(/\/$/, '');
+    await ctx.reply(
+      `📄 Политика обработки данных EcoHub:\n${base}/privacy.html\n\nКакие данные храним, зачем, как удалить или получить свою копию. Правила сообщества: /developer_info`,
       LOUD,
     );
   });
@@ -328,7 +338,7 @@ export function createBot(token, webAppUrl) {
 export async function registerBotCommands(telegram) {
   try {
     await telegram.setMyCommands(BOT_COMMANDS);
-    console.log('🤖 Команды бота: /start /support /app /help /developer_info');
+    console.log('🤖 Команды бота: /start /support /app /help /developer_info /privacy');
   } catch (err) {
     console.warn('[support] setMyCommands failed:', err.message);
   }
