@@ -156,6 +156,12 @@ export async function acceptLegal(userId, fields, telegramUser) {
   return publicUser(await getUserById(userId));
 }
 
+/** Включить/выключить напоминания и авто-удаление невостребованных объявлений. */
+export async function setNudgesDisabled(userId, disabled) {
+  await run('UPDATE users SET nudges_disabled = ? WHERE id = ?', disabled ? 1 : 0, userId);
+  return publicUser(await getUserById(userId));
+}
+
 function parsePhotosFromRow(row) {
   try {
     const raw = row?.photos;

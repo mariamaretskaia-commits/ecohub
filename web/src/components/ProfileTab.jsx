@@ -17,6 +17,21 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
   const [openMine, setOpenMine] = useState(true);
   const [openFav, setOpenFav] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const [togglingNudges, setTogglingNudges] = useState(false);
+
+  const nudgesOff = Boolean(user?.nudges_disabled);
+
+  const handleToggleNudges = async () => {
+    if (togglingNudges) return;
+    setTogglingNudges(true);
+    try {
+      await api.setNudges(!nudgesOff);
+      onRefresh?.();
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось изменить настройку');
+    }
+    setTogglingNudges(false);
+  };
 
   const handleExportData = async () => {
     try {
@@ -178,6 +193,31 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
         <div className="grid grid-cols-2 gap-3">
           <StatCard value={user.items_shared || 0} label="Вещей отдано" />
           <StatCard value={user.items_taken || 0} label="Вещей взято" />
+        </div>
+      </div>
+
+      <div className="card p-5 mt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="type-title">Напоминания об объявлениях</h3>
+            <p className="type-body mt-1 leading-relaxed">
+              Через 14 дней бот напомнит, если вещь никто не забрал, а через 21 день удалит объявление без откликов. Отключите — тогда всё только вручную.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleNudges}
+            disabled={togglingNudges}
+            aria-pressed={!nudgesOff}
+            aria-label={nudgesOff ? 'Включить напоминания и авто-удаление' : 'Отключить напоминания и авто-удаление'}
+            className="shrink-0 w-14 h-8 rounded-full relative transition-colors"
+            style={{ background: nudgesOff ? '#cbd5e1' : '#66c68a' }}
+          >
+            <span
+              className="absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all"
+              style={{ left: nudgesOff ? 4 : 28 }}
+            />
+          </button>
         </div>
       </div>
 

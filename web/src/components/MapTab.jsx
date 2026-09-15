@@ -140,10 +140,10 @@ function MapFly({ loc, focusPoint }) {
   return null;
 }
 
-export default function MapTab() {
+export default function MapTab({ prefilter = [] }) {
   const [allPoints, setAllPoints] = useState([]);
   const [loadError, setLoadError] = useState('');
-  const [filterTypes, setFilterTypes] = useState([]);
+  const [filterTypes, setFilterTypes] = useState(() => (Array.isArray(prefilter) ? [...prefilter] : []));
   const [loc, setLoc] = useState({
     oblast: 'Гродненская область',
     settlement: 'Гродно',

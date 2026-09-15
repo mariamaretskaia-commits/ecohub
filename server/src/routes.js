@@ -10,11 +10,13 @@ import {
   displayName,
   exportUserData,
   deleteUserData,
+  setNudgesDisabled,
 } from './users.js';
 import { storeItemPhotos, deleteStoredPhotos } from './storage.js';
 import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem } from './trust/pipeline.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
+import { removeItemWithAssets } from './items.js';
 
 function sendError(res, err) {
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
@@ -56,6 +58,15 @@ export function registerUserRoutes(app, authMiddleware) {
       const user = await findOrCreateUser(req.telegramUser);
       const saved = await saveProfile(user.id, req.body, Boolean(req.body.consent));
       res.json(saved);
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.patch('/api/me/nudges', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      res.json(await setNudgesDisabled(user.id, Boolean(req.body?.enabled === false)));
     } catch (err) {
       sendError(res, err);
     }
@@ -307,8 +318,8 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       const photoUrl = photos[0] || null;
 
       const result = await run(`
-        INSERT INTO items (user_id, title, description, photo_url, photos, oblast, settlement, district, category, type)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO items (user_id, title, description, photo_url, photos, oblast, settlement, district, category, type, unclaimed_delete_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '+21 days'))
       `,
       user.id,
       title,
@@ -403,11 +414,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (Number(item.user_id) !== Number(user.id)) return res.status(403).json({ error: 'Можно удалить только своё объявление' });
       if (item.status !== 'active') return res.status(400).json({ error: 'Объявление уже закрыто' });
 
-      const photosToRemove = parsePhotos(item);
-      await run('DELETE FROM item_wants WHERE item_id = ?', item.id);
-      await run('DELETE FROM item_favorites WHERE item_id = ?', item.id);
-      await run('DELETE FROM items WHERE id = ?', item.id);
-      if (photosToRemove.length) await deleteStoredPhotos(photosToRemove);
+      await removeItemWithAssets(item);
       res.json({ success: true });
     } catch (err) {
       sendError(res, err);

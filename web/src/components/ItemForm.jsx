@@ -188,6 +188,11 @@ export default function ItemForm({ item = null, onClose, onSaved }) {
         <button type="submit" disabled={loading} className="btn-mint w-full">
           {loading ? (editing ? 'Сохранение...' : 'Публикация...') : (editing ? 'Сохранить' : 'Опубликовать')}
         </button>
+        {!editing && (
+          <p className="type-empty text-center text-xs leading-relaxed">
+            Если за 21 день вещь никто не заберёт, объявление удалится автоматически — заранее придёт напоминание.
+          </p>
+        )}
       </form>
     </div>
   );

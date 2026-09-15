@@ -34,6 +34,9 @@ function adaptSql(sql) {
       s = `${s.replace(/;?\s*$/, '')} ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
     }
   }
+  s = s.replace(/datetime\('now',\s*'-7 days'\)/gi, "(NOW() - INTERVAL '7 days')");
+  s = s.replace(/datetime\('now',\s*'\+21 days'\)/gi, "(NOW() + INTERVAL '21 days')");
+  s = s.replace(/datetime\('now',\s*'\+7 days'\)/gi, "(NOW() + INTERVAL '7 days')");
   s = s.replace(/datetime\('now',\s*'-1 day'\)/gi, "(NOW() - INTERVAL '1 day')");
   s = s.replace(/datetime\('now'\)/gi, 'NOW()');
   if (/INSERT INTO item_wants/i.test(s) && !/ON CONFLICT/i.test(s)) {
@@ -197,6 +200,16 @@ function ensureSqliteSchema(db) {
   if (!itemCols.includes('oblast')) db.exec("ALTER TABLE items ADD COLUMN oblast TEXT DEFAULT 'Гродненская область'");
   if (!itemCols.includes('settlement')) db.exec("ALTER TABLE items ADD COLUMN settlement TEXT DEFAULT 'Гродно'");
   if (!itemCols.includes('photos')) db.exec('ALTER TABLE items ADD COLUMN photos TEXT');
+  if (!itemCols.includes('unclaimed_delete_at')) db.exec('ALTER TABLE items ADD COLUMN unclaimed_delete_at TEXT');
+  if (!itemCols.includes('unclaimed_nudge_at')) db.exec('ALTER TABLE items ADD COLUMN unclaimed_nudge_at TEXT');
+
+  db.exec(`
+    UPDATE items
+    SET unclaimed_delete_at = datetime('now', '+21 days')
+    WHERE unclaimed_delete_at IS NULL
+      AND status = 'active'
+      AND user_id IN (SELECT id FROM users WHERE telegram_id NOT LIKE 'demo_%')
+  `);
 
   const legacy = db.prepare(`
     SELECT id, photo_url FROM items
@@ -209,7 +222,7 @@ function ensureSqliteSchema(db) {
   for (const [col, def] of [
     ['patronymic', 'TEXT'], ['birth_date', 'TEXT'], ['phone', 'TEXT'],
     ['phone_verified', 'INTEGER DEFAULT 0'], ['consent_at', 'TEXT'], ['nickname', 'TEXT'],
-    ['terms_rules_at', 'TEXT'], ['terms_privacy_at', 'TEXT'],
+    ['terms_rules_at', 'TEXT'], ['terms_privacy_at', 'TEXT'], ['nudges_disabled', 'INTEGER DEFAULT 0'],
   ]) {
     if (!userCols.includes(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} ${def}`);
   }

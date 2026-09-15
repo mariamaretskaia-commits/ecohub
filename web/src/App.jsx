@@ -12,7 +12,17 @@ import BrandMark from './components/BrandMark';
 import LegalGate from './components/LegalGate';
 
 export default function App() {
-  const [tab, setTab] = useState('profile');
+  const launch = (() => {
+    const q = new URLSearchParams(window.location.search);
+    const tab = q.get('tab');
+    const map = q.get('map');
+    return {
+      tab: ['feed', 'map', 'chat', 'profile', 'info'].includes(tab) ? tab : null,
+      map: typeof map === 'string' && map ? map : null,
+    };
+  })();
+  const [tab, setTab] = useState(launch.tab || 'profile');
+  const [mapPrefilter, setMapPrefilter] = useState(launch.map || null);
   const [user, setUser] = useState(null);
   const [loadError, setLoadError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -255,7 +265,7 @@ export default function App() {
                 onOpenChat={openChat}
               />
             )}
-            {tab === 'map' && <MapTab />}
+            {tab === 'map' && <MapTab prefilter={mapPrefilter ? [mapPrefilter] : []} />}
             {tab === 'chat' && (
               <ChatTab
                 user={user}

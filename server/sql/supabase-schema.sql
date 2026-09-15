@@ -22,11 +22,14 @@ CREATE TABLE IF NOT EXISTS users (
   consent_at TIMESTAMPTZ,
   nickname TEXT,
   terms_rules_at TIMESTAMPTZ,
-  terms_privacy_at TIMESTAMPTZ
+  terms_privacy_at TIMESTAMPTZ,
+  nudges_disabled INTEGER DEFAULT 0
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_phone_unique
   ON users(phone) WHERE phone IS NOT NULL AND phone <> '';
+
+ALTER TABLE IF EXISTS users ADD COLUMN IF NOT EXISTS nudges_disabled INTEGER DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS items (
   id BIGSERIAL PRIMARY KEY,
@@ -41,8 +44,20 @@ CREATE TABLE IF NOT EXISTS items (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   oblast TEXT DEFAULT 'Гродненская область',
   settlement TEXT DEFAULT 'Гродно',
-  photos TEXT
+  photos TEXT,
+  unclaimed_delete_at TIMESTAMPTZ,
+  unclaimed_nudge_at TIMESTAMPTZ
 );
+
+-- Миграция существующих БД: новые колонки и роль-гейт для старых объявлений.
+ALTER TABLE IF EXISTS items ADD COLUMN IF NOT EXISTS unclaimed_delete_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS items ADD COLUMN IF NOT EXISTS unclaimed_nudge_at TIMESTAMPTZ;
+
+UPDATE items
+SET unclaimed_delete_at = NOW() + INTERVAL '21 days'
+WHERE unclaimed_delete_at IS NULL
+  AND status = 'active'
+  AND user_id IN (SELECT id FROM users WHERE telegram_id NOT LIKE 'demo\_%');
 
 CREATE TABLE IF NOT EXISTS recycling_points (
   id BIGSERIAL PRIMARY KEY,
