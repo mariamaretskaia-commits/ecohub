@@ -8,6 +8,11 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb, run, get, all } from '../src/db.js';
 import { findOrCreateUser, acceptLegal, exportUserData, deleteUserData } from '../src/users.js';
+import {
+  createDownloadToken,
+  consumeDownloadToken,
+  _resetDownloadTokens,
+} from '../src/export-download.js';
 import { BOT_COMMANDS } from '../../bot/src/createBot.js';
 
 await initDb();
@@ -182,4 +187,31 @@ test('команда /developer_info зарегистрирована', () => {
   const dev = BOT_COMMANDS.find((c) => c.command === 'developer_info');
   assert.ok(dev, 'developer_info должен быть в списке команд');
   assert.match(dev.description, /права/i);
+});
+
+test('токен скачивания одноразовый и привязан к пользователю', () => {
+  _resetDownloadTokens();
+  const token = createDownloadToken('privacy-tok-1');
+  assert.ok(token);
+  assert.equal(consumeDownloadToken(token).telegramId, 'privacy-tok-1');
+  assert.deepEqual(consumeDownloadToken(token), { error: 'invalid' }, 'повторное использование отклоняется');
+});
+
+test('токен скачивания: без токена и с неверным токеном — отказ', () => {
+  _resetDownloadTokens();
+  assert.deepEqual(consumeDownloadToken(), { error: 'missing' });
+  assert.deepEqual(consumeDownloadToken(''), { error: 'missing' });
+  assert.deepEqual(consumeDownloadToken('nope'), { error: 'invalid' });
+});
+
+test('истёкший токен скачивания отклоняется', async (t) => {
+  _resetDownloadTokens();
+  await t.mock.timers.enable({ apis: ['Date'] });
+  try {
+    const token = createDownloadToken('privacy-tok-2');
+    t.mock.timers.tick(2 * 60 * 1000 + 1000);
+    assert.deepEqual(consumeDownloadToken(token), { error: 'expired' });
+  } finally {
+    t.mock.timers.reset();
+  }
 });

@@ -153,6 +153,8 @@ export const api = {
     }),
   deleteAccount: () => request('/api/me', { method: 'DELETE' }),
   exportData: () => request('/api/me/export'),
+  getExportToken: () =>
+    request('/api/me/export/token', { method: 'POST' }),
   verifyDevPhone: (phone) =>
     request('/api/me/phone-dev', { method: 'POST', body: JSON.stringify({ phone }) }),
   getItems: (params = {}) => {

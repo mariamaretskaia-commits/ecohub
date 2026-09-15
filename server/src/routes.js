@@ -14,6 +14,7 @@ import {
 import { storeItemPhotos, deleteStoredPhotos } from './storage.js';
 import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem } from './trust/pipeline.js';
+import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 
 function sendError(res, err) {
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
@@ -73,6 +74,35 @@ export function registerUserRoutes(app, authMiddleware) {
     try {
       const user = await findOrCreateUser(req.telegramUser);
       res.json(await exportUserData(user.id));
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/me/export/token', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      const token = createDownloadToken(user.telegram_id);
+      res.setHeader('Cache-Control', 'no-store');
+      res.json({ token });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/me/export/download', async (req, res) => {
+    const result = consumeDownloadToken(req.query.token);
+    if (!result.telegramId) {
+      return res.status(403).json({ error: 'Ссылка для скачивания недействительна или истекла' });
+    }
+    try {
+      const user = await findOrCreateUser({ id: Number(result.telegramId) });
+      const data = await exportUserData(user.id);
+      const filename = `ecohub-data-${new Date().toISOString().slice(0, 10)}.json`;
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(JSON.stringify(data, null, 2));
     } catch (err) {
       sendError(res, err);
     }

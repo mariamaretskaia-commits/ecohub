@@ -20,17 +20,10 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
 
   const handleExportData = async () => {
     try {
-      const data = await api.exportData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ecohub-data-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      tg.showAlert('Архив ваших данных сформирован и сохранён в загрузки.');
+      const { token } = await api.getExportToken();
+      const url = `${window.location.origin}/api/me/export/download?token=${encodeURIComponent(token)}`;
+      tg.openLink(url);
+      tg.showAlert('Ваши данные открываются в браузере и сохранятся в Загрузки.');
     } catch (err) {
       tg.showAlert(err.message || 'Не удалось сформировать архив данных');
     }
