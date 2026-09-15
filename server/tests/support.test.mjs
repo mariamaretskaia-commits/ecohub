@@ -7,7 +7,8 @@ process.env.DATABASE_URL = '';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb, run, get } from '../src/db.js';
-import { sendSupportTicket, sendSupportReply, BOT_COMMANDS } from '../../bot/src/createBot.js';
+import { sendSupportTicket, sendSupportReply, BOT_COMMANDS, createBot } from '../../bot/src/createBot.js';
+import telegrafTelegram from '../../bot/node_modules/telegraf/lib/telegram.js';
 
 await initDb();
 await run("DELETE FROM meta WHERE key = 'dev_telegram_chat_id'");
@@ -85,4 +86,41 @@ test('команды бота зарегистрированы для меню',
   assert.ok(commands.includes('help'));
   assert.ok(commands.includes('developer_info'));
   assert.ok(commands.includes('privacy'));
+});
+
+test('команда /privacy отвечает ссылкой на политику обработки данных', async () => {
+  const Telegram = telegrafTelegram.Telegram || telegrafTelegram.default?.Telegram || telegrafTelegram;
+  const original = Telegram.prototype.callApi;
+  const calls = [];
+  Telegram.prototype.callApi = async function callApiStub(method, payload = {}) {
+    calls.push({ method, payload });
+    if (method === 'sendMessage') {
+      return { message_id: 1, date: Math.floor(Date.now() / 1000), chat: { id: payload.chat_id }, text: payload.text };
+    }
+    if (method === 'getMe') return { id: 111, is_bot: true, first_name: 'EcoHub', username: 'EcoHubBY_bot' };
+    return { ok: true };
+  };
+
+  try {
+    const bot = createBot('111:test', 'https://ecohub-baoc.onrender.com');
+    await bot.handleUpdate({
+      update_id: 1,
+      message: {
+        message_id: 1,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: 555, type: 'private' },
+        from: { id: 555, is_bot: false, first_name: 'Тест' },
+        text: '/privacy',
+        entities: [{ type: 'bot_command', offset: 0, length: '/privacy'.length }],
+      },
+    });
+  } finally {
+    Telegram.prototype.callApi = original;
+  }
+
+  const msg = calls.find((c) => c.method === 'sendMessage');
+  assert.ok(msg, 'на /privacy должен уйти sendMessage');
+  assert.equal(msg.payload.chat_id, 555);
+  assert.match(msg.payload.text, /https:\/\/ecohub-baoc\.onrender\.com\/privacy\.html/);
+  assert.match(msg.payload.text, /Политика обработки данных EcoHub/);
 });
