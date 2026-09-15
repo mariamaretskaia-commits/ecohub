@@ -17,7 +17,11 @@ export default function App() {
     const tab = q.get('tab');
     const map = q.get('map');
     return {
-      tab: ['feed', 'map', 'chat', 'profile', 'info'].includes(tab) ? tab : null,
+      tab: ['feed', 'map', 'chat', 'profile', 'info'].includes(tab)
+        ? tab
+        : typeof map === 'string' && map
+          ? 'map'
+          : null,
       map: typeof map === 'string' && map ? map : null,
     };
   })();
