@@ -62,15 +62,15 @@ export async function storeItemPhotos(files) {
 }
 
 /**
- * Генерирует JPEG-миниатюру (≈360px по большей стороне) для data/URL-фото,
- * чтобы лента была лёгкой. Ошибки не бросает — вернёт null для битого файла.
+ * Генерирует JPEG-миниатюру (≈640px по большей стороне, q0.8) для data/URL-фото,
+ * чтобы лента была чёткой. Ошибки не бросает — вернёт null для битого файла.
  */
-export async function thumbDataUrl(buffer, { maxSide = 360, quality = 0.72 } = {}) {
+export async function thumbDataUrl(buffer, { maxSide = 640, quality = 0.8 } = {}) {
   try {
     if (!buffer || !buffer.length) return null;
     const img = await Jimp.read(buffer);
     if (Math.max(img.bitmap.width, img.bitmap.height) > maxSide) {
-      img.resize(maxSide, Jimp.AUTO);
+      img.resize(maxSide, Jimp.AUTO, Jimp.RESIZE_BICUBIC);
     }
     const out = await img.quality(quality).getBufferAsync(Jimp.MIME_JPEG);
     return `data:image/jpeg;base64,${out.toString('base64')}`;

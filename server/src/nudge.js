@@ -16,11 +16,14 @@ export const NUDGE_BATCH = 20;
 
 /** Категория объявления → фильтр карты пунктов приёма. */
 const CATEGORY_TO_POINT_TYPE = {
+  'Всё для детей и мам': 'clothing',
+  'Женский гардероб': 'clothing',
+  'Мужской гардероб': 'clothing',
   'Одежда': 'clothing',
-  'Обувь': 'clothing',
-  'Детям': 'clothing',
-  'Техника': 'electronics',
+  'Телефоны и планшеты': 'electronics',
   'Электроника': 'electronics',
+  'Компьютерная техника': 'electronics',
+  'Бытовая техника': 'electronics',
 };
 
 export function mapCategoryToPointType(category) {

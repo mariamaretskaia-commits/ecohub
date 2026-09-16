@@ -17,7 +17,7 @@ export default function ItemForm({ item = null, initial = null, onClose, onSaved
     oblast: item?.oblast || initial?.location?.oblast || initial?.oblast || 'Гродненская область',
     settlement: item?.settlement || initial?.location?.settlement || initial?.settlement || 'Гродно',
     district: item?.district || initial?.location?.district || initial?.district || '',
-    category: item?.category || initial?.category || 'Одежда',
+    category: item?.category || initial?.category || 'Всё для дома',
   });
   const [photos, setPhotos] = useState(() => {
     const base = itemPhotos(item).map((url) => ({ url, preview: photoSrc(url) }));

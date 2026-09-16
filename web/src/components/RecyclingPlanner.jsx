@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { api, POINT_TYPES } from '../api';
+import { api, RECYCLING_CATEGORIES, POINT_TYPES } from '../api';
 import { tg } from '../telegram';
+import { getPlace, CITY_DISTRICT_COORDS } from '../belarus-places';
 import Sticker from './Sticker';
+
+const MAX_ITEMS = 30;
 
 function parseNames(text) {
   return [...new Set(
@@ -9,14 +12,28 @@ function parseNames(text) {
       .split(/[\n,;/]+/)
       .map((s) => s.trim())
       .filter(Boolean),
-  )];
+  )].slice(0, MAX_ITEMS);
+}
+
+/** Координаты выбранной локации (район города точнее общего центра). */
+function plannerCoords(loc) {
+  if (!loc) return null;
+  if (loc.district && loc.settlement) {
+    const dc = CITY_DISTRICT_COORDS[loc.settlement];
+    const c = dc && dc[loc.district];
+    if (c) return c;
+  }
+  const place = getPlace(loc.oblast, loc.settlement);
+  if (place?.lat != null && place?.lng != null) return [place.lat, place.lng];
+  return null;
 }
 
 /**
  * «Разобрать вещи»: список вещей → категории (Zhipu + словарь) →
- * маршрут по пунктам приёма. Не влияет на публикацию в ленте — только планирование.
+ * маршрут по пунктам приёма рядом с выбранной на карте локацией.
+ * Не влияет на публикацию в ленте — только планирование.
  */
-export default function RecyclingPlanner({ onClose, onShowOnMap }) {
+export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
   const [text, setText] = useState('');
   const [items, setItems] = useState([]);
   const [route, setRoute] = useState(null);
@@ -26,7 +43,7 @@ export default function RecyclingPlanner({ onClose, onShowOnMap }) {
   const handleCategorize = async () => {
     const names = parseNames(text);
     if (!names.length) {
-      tg.showAlert('Напишите, что хотите разобрать — по одной вещи в строке.');
+      tg.showAlert('Напишите, что хотите разобрать – по одной вещи в строке.');
       return;
     }
     setBusy(true);
@@ -59,7 +76,8 @@ export default function RecyclingPlanner({ onClose, onShowOnMap }) {
     }
     setBusy(true);
     try {
-      const plan = await api.planRecycling({ categories });
+      const [lat, lng] = plannerCoords(loc) || [null, null];
+      const plan = await api.planRecycling({ categories, lat, lng });
       setRoute(plan);
       setStage('route');
     } catch (err) {
@@ -81,6 +99,7 @@ export default function RecyclingPlanner({ onClose, onShowOnMap }) {
   };
 
   const cats = uniqueCategories();
+  const namesCount = parseNames(text).length;
 
   return (
     <div className="fixed inset-0 z-40 bg-white px-4 pt-3 pb-6 overflow-y-auto">
@@ -99,18 +118,21 @@ export default function RecyclingPlanner({ onClose, onShowOnMap }) {
       </div>
 
       <p className="type-body mb-4 leading-relaxed">
-        Напишите, что накопилось, — подскажем, к каким категориям это относится, и построим
+        Напишите, что накопилось, – подскажем, к каким категориям это относится, и построим
         маршрут по точкам, где всё можно сдать. Объявления в ленте это не создаёт и не меняет.
       </p>
 
       <label className="block mb-3">
-        <span className="type-label">Что у вас лежит? — по одной вещи в строке</span>
+        <span className="type-label">Что у вас лежит? – по одной вещи в строке</span>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           className="field h-32 resize-none"
           placeholder={'Старая куртка\nТелевизор\nЖурналы'}
         />
+        <span className="type-kicker mt-1 block">
+          {namesCount}/{MAX_ITEMS} вещей{namesCount >= MAX_ITEMS ? ' – максимум достигнут' : ''}
+        </span>
       </label>
 
       <button
@@ -136,7 +158,7 @@ export default function RecyclingPlanner({ onClose, onShowOnMap }) {
                   onChange={(e) => changeCategory(idx, e.target.value)}
                   className="field !p-2 text-sm w-36"
                 >
-                  {[...new Set(['Одежда', 'Обувь', 'Детям', 'Мебель', 'Техника', 'Электроника', 'Посуда', 'Книги', 'Спорт', 'Инструменты', 'Красота', 'Растения', 'Животным', 'Другое'])].map((c) => (
+                  {RECYCLING_CATEGORIES.map((c) => (
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
@@ -144,14 +166,16 @@ export default function RecyclingPlanner({ onClose, onShowOnMap }) {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={handleBuildRoute}
-            disabled={busy}
-            className="btn-primary w-full mt-4"
-          >
-            {busy && stage === 'route' ? 'Строим маршрут...' : 'Построить маршрут сдачи'}
-          </button>
+          <div className="sticky bottom-0 -mx-4 mt-4 bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] border-t border-ink/5">
+            <button
+              type="button"
+              onClick={handleBuildRoute}
+              disabled={busy}
+              className="btn-primary w-full"
+            >
+              {busy && stage === 'route' ? 'Строим маршрут...' : 'Построить маршрут сдачи'}
+            </button>
+          </div>
         </>
       )}
 

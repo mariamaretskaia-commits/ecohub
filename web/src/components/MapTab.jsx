@@ -284,8 +284,7 @@ export default function MapTab({ prefilter = [] }) {
 
       <div className="px-4 pt-1 pb-1">
         <p className="type-kicker leading-relaxed mb-1.5">
-          Не знаете, куда сесть? Введите список вещей — поможем разобрать по категориям и
-          покажем ближайшие пункты на карте.
+          Введите список вещей – поможем разобрать по категориям и покажем ближайшие пункты на карте.
         </p>
         <button type="button" onClick={() => setPlannerOpen(true)} className="btn-secondary w-full">
           Разобрать вещи
@@ -514,6 +513,7 @@ export default function MapTab({ prefilter = [] }) {
 
       {plannerOpen && !selectedPoint && (
         <RecyclingPlanner
+          loc={loc}
           onClose={() => setPlannerOpen(false)}
           onShowOnMap={showOnMapFromPlanner}
         />

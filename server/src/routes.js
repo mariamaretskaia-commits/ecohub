@@ -1,5 +1,5 @@
 import { get, all, run } from './db.js';
-import { assertCleanListing, ITEM_CATEGORIES } from './moderation.js';
+import { assertCleanListing, ITEM_CATEGORIES, normalizeCategory, RECYCLING_CATEGORIES } from './moderation.js';
 import {
   findOrCreateUser,
   publicUser,
@@ -279,9 +279,9 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (settlement) { sql += ' AND items.settlement = ?'; params.push(settlement); }
       if (district) { sql += ' AND items.district = ?'; params.push(district); }
       if (category) {
-        if (category === 'Детям') {
+        if (category === 'Всё для детей и мам') {
           sql += ' AND items.category IN (?, ?)';
-          params.push('Детям', 'Игрушки');
+          params.push('Всё для детей и мам', 'Игрушки');
         } else {
           sql += ' AND items.category = ?';
           params.push(category);
@@ -337,9 +337,11 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (!title || !district || !category || !oblast || !settlement) {
         return res.status(400).json({ error: 'Заполните обязательные поля' });
       }
-      if (!ITEM_CATEGORIES.includes(category)) {
+      const categoryNorm = normalizeCategory(category);
+      if (!categoryNorm || !ITEM_CATEGORIES.includes(categoryNorm)) {
         return res.status(400).json({ error: 'Выберите категорию из списка' });
       }
+      category = categoryNorm;
 
       assertCleanListing(title, description);
 
@@ -411,9 +413,11 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (!title || !district || !category || !oblast || !settlement) {
         return res.status(400).json({ error: 'Заполните обязательные поля' });
       }
-      if (!ITEM_CATEGORIES.includes(category)) {
+      const categoryNorm = normalizeCategory(category);
+      if (!categoryNorm || !ITEM_CATEGORIES.includes(categoryNorm)) {
         return res.status(400).json({ error: 'Выберите категорию из списка' });
       }
+      category = categoryNorm;
 
       assertCleanListing(title, description);
 
@@ -694,7 +698,7 @@ export function registerPointRoutes(app) {
 
 const VISION_MAX_BYTES = 5 * 1024 * 1024;
 
-const MAX_CATEGORIZE_NAMES = 60;
+const MAX_CATEGORIZE_NAMES = 30;
 
 export function registerVisionRoutes(app, authMiddleware, upload) {
   app.post('/api/vision/categorize', authMiddleware, async (req, res) => {
@@ -709,7 +713,7 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
       if (list.length > MAX_CATEGORIZE_NAMES) {
         return res.status(400).json({ error: `Не больше ${MAX_CATEGORIZE_NAMES} вещей за раз` });
       }
-      const { items, provider } = await categorizeItems(list);
+      const { items, provider } = await categorizeItems(list, { categories: RECYCLING_CATEGORIES });
       res.json({ items, provider });
     } catch (err) {
       sendError(res, err);

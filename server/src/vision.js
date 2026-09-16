@@ -4,26 +4,26 @@
  * в categorize.js через Zhipu с офлайн-словарём.)
  */
 import { all } from './db.js';
-import { ITEM_CATEGORIES } from './moderation.js';
-
-const ACCEPTED = new Set(ITEM_CATEGORIES);
 
 /** Категория вещи → типы пунктов приёма (paper, glass, plastic, electronics, clothing, hazardous, metal, other). */
 const CATEGORY_TO_POINT_TYPES = {
-  Одежда: ['clothing'],
-  Обувь: ['clothing'],
-  Детям: ['clothing'],
-  Мебель: ['other'],
-  Техника: ['electronics'],
-  Электроника: ['electronics'],
-  Посуда: ['glass', 'other'],
-  Книги: ['paper'],
-  Спорт: ['other'],
-  Инструменты: ['metal', 'other'],
-  Красота: ['hazardous', 'other'],
-  Растения: ['other'],
-  Животным: ['other'],
-  Другое: ['other'],
+  'Всё для детей и мам': ['clothing'],
+  'Женский гардероб': ['clothing'],
+  'Мужской гардероб': ['clothing'],
+  'Одежда': ['clothing'],
+  'Авто и запчасти': ['metal', 'other'],
+  'Ремонт и стройка': ['metal', 'other'],
+  'Хобби, спорт и туризм': ['other'],
+  'Мебель': ['other'],
+  'Для животных': ['other'],
+  'Всё для дома': ['other'],
+  'Телефоны и планшеты': ['electronics'],
+  'Сад и огород': ['other'],
+  'Электроника': ['electronics'],
+  'Компьютерная техника': ['electronics'],
+  'Бытовая техника': ['electronics'],
+  'Красота и здоровье': ['hazardous', 'other'],
+  'Другое': ['other'],
 };
 
 export function mapCategoryToPointTypes(category) {

@@ -30,9 +30,10 @@ afterEach(async () => {
 
 test('mapCategoryToPointTypes: категории → типы пунктов', () => {
   assert.deepEqual(mapCategoryToPointTypes('Одежда'), ['clothing']);
-  assert.deepEqual(mapCategoryToPointTypes('Книги'), ['paper']);
-  assert.deepEqual(mapCategoryToPointTypes('Техника'), ['electronics']);
-  assert.deepEqual(mapCategoryToPointTypes('Посуда'), ['glass', 'other']);
+  assert.deepEqual(mapCategoryToPointTypes('Женский гардероб'), ['clothing']);
+  assert.deepEqual(mapCategoryToPointTypes('Хобби, спорт и туризм'), ['other']);
+  assert.deepEqual(mapCategoryToPointTypes('Бытовая техника'), ['electronics']);
+  assert.deepEqual(mapCategoryToPointTypes('Ремонт и стройка'), ['metal', 'other']);
   assert.deepEqual(mapCategoryToPointTypes('Мебель'), ['other']);
   assert.deepEqual(mapCategoryToPointTypes('Неизвестно'), ['other']);
 });
@@ -54,14 +55,18 @@ async function seedPoints() {
     `INSERT INTO recycling_points (name, type, lat, lng, address, accepts) VALUES (?, ?, ?, ?, ?, ?)`,
     'Стекло и металл', 'glass', 53.71, 23.86, 'ул. Тест 4', 'glass,metal',
   );
+  await run(
+    `INSERT INTO recycling_points (name, type, lat, lng, address, accepts) VALUES (?, ?, ?, ?, ?, ?)`,
+    'Пункт Прочее', 'other', 53.72, 23.87, 'ул. Тест 5', null,
+  );
 }
 
-test('planRecyclingRoute: одежда+техника покрываются одним универсальным пунктом', async () => {
+test('planRecyclingRoute: одежда+электроника покрываются одним универсальным пунктом', async () => {
   await seedPoints();
-  const plan = await planRecyclingRoute(['Одежда', 'Техника']);
+  const plan = await planRecyclingRoute(['Одежда', 'Бытовая техника']);
   assert.ok(plan.routes.length >= 1);
   const union = [...new Set(plan.routes.flatMap((r) => r.categories))];
-  assert.deepEqual([...union].sort(), ['Одежда', 'Техника']);
+  assert.deepEqual([...union].sort(), ['Бытовая техника', 'Одежда'].sort());
   assert.deepEqual(plan.uncovered, []);
   const maxCat = plan.routes.reduce((a, r) => (r.categories.length > a ? r.categories.length : a), 0);
   assert.ok(maxCat === 2, 'объединение в один маршрут предпочтительно');
@@ -69,7 +74,7 @@ test('planRecyclingRoute: одежда+техника покрываются о�
 
 test('planRecyclingRoute: 5 категорий → ≤2 маршрута, всё покрыто, только принимаемые типы', async () => {
   await seedPoints();
-  const cats = ['Одежда', 'Книги', 'Техника', 'Инструменты', 'Посуда'];
+  const cats = ['Одежда', 'Женский гардероб', 'Бытовая техника', 'Ремонт и стройка', 'Всё для дома'];
   const plan = await planRecyclingRoute(cats);
   assert.ok(plan.routes.length <= 2, `маршрутов ≤2, получено ${plan.routes.length}`);
   const covered = plan.routes.flatMap((r) => r.categories);
@@ -96,9 +101,10 @@ test('planRecyclingRoute: при координатах выбирается б�
 
 test('planRecyclingRoute: отсутствующий тип пункта уходит в uncovered', async () => {
   await seedPoints();
-  const plan = await planRecyclingRoute(['Растения']);
+  await run("DELETE FROM recycling_points WHERE name = 'Пункт Прочее'");
+  const plan = await planRecyclingRoute(['Красота и здоровье']);
   assert.deepEqual(plan.routes, []);
-  assert.deepEqual(plan.uncovered, ['Растения']);
+  assert.deepEqual(plan.uncovered, ['Красота и здоровье']);
 });
 
 test('planRecyclingRoute: пустой список → пустой план', async () => {

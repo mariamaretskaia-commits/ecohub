@@ -11,12 +11,12 @@ const COLS = [
 ];
 
 const DEMO_ITEMS = [
-  { title: 'Детский конструктор LEGO', description: 'Большой набор, все детали на месте.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Центр', category: 'Игрушки', type: 'free', first_name: 'Анна', username: 'anna_grodno' },
-  { title: 'Перфоратор Bosch', description: 'Рабочий, в хорошем состоянии.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Ольшанка', category: 'Инструменты', type: 'free', first_name: 'Дмитрий', username: 'dim_tools' },
-  { title: 'Книги по программированию', description: '5 книг: Python, JavaScript, алгоритмы.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Девятовка', category: 'Книги', type: 'free', first_name: 'Максим', username: 'max_dev' },
-  { title: 'Детская коляска', description: 'Трёхколёсная, б/у, хорошее состояние.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Вишневец', category: 'Другое', type: 'free', first_name: 'Елена', username: 'elena_m' },
-  { title: 'Палатка 4-местная', description: 'Для походов, комплект полный.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Грандичи', category: 'Спорт', type: 'free', first_name: 'Игорь', username: 'igor_camp' },
-  { title: 'Посуда керамическая', description: 'Набор тарелок и чашек, 12 шт.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Фолюш', category: 'Посуда', type: 'free', first_name: 'Ольга', username: 'olga_home' },
+  { title: 'Детский конструктор LEGO', description: 'Большой набор, все детали на месте.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Центр', category: 'Всё для детей и мам', type: 'free', first_name: 'Анна', username: 'anna_grodno' },
+  { title: 'Перфоратор Bosch', description: 'Рабочий, в хорошем состоянии.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Ольшанка', category: 'Ремонт и стройка', type: 'free', first_name: 'Дмитрий', username: 'dim_tools' },
+  { title: 'Книги по программированию', description: '5 книг: Python, JavaScript, алгоритмы.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Девятовка', category: 'Хобби, спорт и туризм', type: 'free', first_name: 'Максим', username: 'max_dev' },
+  { title: 'Детская коляска', description: 'Трёхколёсная, б/у, хорошее состояние.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Вишневец', category: 'Всё для детей и мам', type: 'free', first_name: 'Елена', username: 'elena_m' },
+  { title: 'Палатка 4-местная', description: 'Для походов, комплект полный.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Грандичи', category: 'Хобби, спорт и туризм', type: 'free', first_name: 'Игорь', username: 'igor_camp' },
+  { title: 'Посуда керамическая', description: 'Набор тарелок и чашек, 12 шт.', oblast: 'Гродненская область', settlement: 'Гродно', district: 'Фолюш', category: 'Всё для дома', type: 'free', first_name: 'Ольга', username: 'olga_home' },
 ];
 
 async function seedPoints() {

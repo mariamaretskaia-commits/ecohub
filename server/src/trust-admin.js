@@ -5,6 +5,7 @@
 import { get, all, run } from './db.js';
 import { thumbDataUrl } from './storage.js';
 import { parseItemPhotos } from './items.js';
+import { LEGACY_CATEGORY_MAP, ITEM_CATEGORIES } from './moderation.js';
 import {
   getAdminQueue,
   getModLog,
@@ -133,11 +134,13 @@ export function registerTrustAdminRoutes(app) {
     }
   });
 
-  // Разовый backfill миниатюр для старых объявлений
+  // Разовый backfill миниатюр для старых объявлений (?rewrite=1 перезаписывает готовые)
   app.post('/api/trust/admin/backfill-thumbs', verifyToken, async (req, res) => {
+    const rewrite = req.body?.rewrite === true || req.body?.rewrite === 1;
+    const where = rewrite ? 'photos IS NOT NULL' : 'photo_thumbs IS NULL';
     const rows = await all(
       `SELECT id, photos, photo_url FROM items
-       WHERE photo_thumbs IS NULL
+       WHERE ${where}
        ORDER BY id
        LIMIT ?`,
       BACKFILL_BATCH,
@@ -157,5 +160,31 @@ export function registerTrustAdminRoutes(app) {
       done += 1;
     }
     res.json({ processed: done, failed, remaining_hint: 'запустите повторно, пока не вернётся 0' });
+  });
+
+  // Одноразовая миграция старых категорий → новая таксономия
+  app.post('/api/trust/admin/backfill-categories', verifyToken, async (req, res) => {
+    const rows = await all(
+      `SELECT id, category FROM items
+       WHERE category IS NOT NULL AND category != ''
+       ORDER BY id
+       LIMIT ?`,
+      BACKFILL_BATCH,
+    );
+    let updated = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      const mapped = LEGACY_CATEGORY_MAP[row.category];
+      if (mapped && ITEM_CATEGORIES.includes(mapped) && mapped !== row.category) {
+        await run('UPDATE items SET category = ? WHERE id = ?', mapped, row.id);
+        updated += 1;
+      } else if (!ITEM_CATEGORIES.includes(row.category)) {
+        await run("UPDATE items SET category = 'Другое' WHERE id = ?", row.id);
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
+    }
+    res.json({ processed: rows.length, updated, skipped, remaining_hint: 'запустите повторно, пока не вернётся 0' });
   });
 }

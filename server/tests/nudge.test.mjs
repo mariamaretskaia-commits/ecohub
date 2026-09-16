@@ -104,10 +104,12 @@ function makeBot() {
   };
 }
 
-test('mapCategoryToPointType: Одежда/Детям/Техника → типы карты, Мебель → нет', () => {
+test('mapCategoryToPointType: одежда/детское/электроника → типы карты, Мебель → нет', () => {
   assert.equal(mapCategoryToPointType('Одежда'), 'clothing');
-  assert.equal(mapCategoryToPointType('Детям'), 'clothing');
-  assert.equal(mapCategoryToPointType('Техника'), 'electronics');
+  assert.equal(mapCategoryToPointType('Женский гардероб'), 'clothing');
+  assert.equal(mapCategoryToPointType('Всё для детей и мам'), 'clothing');
+  assert.equal(mapCategoryToPointType('Бытовая техника'), 'electronics');
+  assert.equal(mapCategoryToPointType('Электроника'), 'electronics');
   assert.equal(mapCategoryToPointType('Мебель'), null);
 });
 
