@@ -15,6 +15,7 @@ import { initDb } from './db.js';
 import { startPointSync } from './sync.js';
 import { resolveWebAppUrl } from './env.js';
 import { startUnclaimedCycle } from './nudge.js';
+import { startGrowthLoop } from './catgrow.js';
 import { runSeed } from './seed.js';
 import { cloudStorageEnabled } from './storage.js';
 
@@ -189,6 +190,7 @@ async function main() {
     if (cloudStorageEnabled()) console.log('☁️  Photos → Supabase Storage');
     startPointSync();
     startUnclaimedCycle(bot, webAppUrl);
+    startGrowthLoop();
     if (process.env.ECO_LOCAL === '1') {
       console.log('🤖 ECO_LOCAL=1 – webhook остаётся на проде (пассивный режим)');
     } else if (bot && webAppUrl && webAppUrl.startsWith('https://')) {

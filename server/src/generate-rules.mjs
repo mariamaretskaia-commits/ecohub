@@ -20,10 +20,10 @@ try {
   }
 } catch { /* no .env */ }
 
-const { zhipuChat, parseJsonEnvelope } = await import('./zai.js');
-const { RECYCLING_CATEGORIES } = await import('./moderation.js');
-
 delete process.env.DATABASE_URL; // локальный SQLite-файл, не прод Postgres
+
+const { deriveStems } = await import('./catgrow.js');
+const { RECYCLING_CATEGORIES } = await import('./moderation.js');
 const { all } = await import('./db.js');
 
 const OUT = path.join(__dirname, '..', 'data', 'generated-rules.json');
@@ -55,32 +55,7 @@ async function namesByCategory() {
 }
 
 async function stemsFor(cat, names) {
-  const prompt = `Реальные названия вещей, отнесённые пользователями к категории «${cat}»: ${names.map((n) => `«${n}»`).join(', ')}.
-Для каждого названия дай его стем — короткую начальную часть слова (без окончания), чтобы находить эту вещь и её склонения. Не добавляй никаких других слов и категорий, только стемы этих названий.
-Формат ответа: ТОЛЬКО JSON-массив строчных строк, например ["коляск","подгузник","бутылочк"].`;
-  const opts = { apiKey, model, timeoutMs: 120000, retries: 2, maxTokens: 3000 };
-  let res = await zhipuChat(
-    [{ role: 'system', content: 'Ты кратко отвечаешь только JSON-массивом, без пояснений.' },
-     { role: 'user', content: prompt }],
-    opts,
-  );
-  let parsed = res.ok ? parseJsonEnvelope(res.content) : null;
-  if (!Array.isArray(parsed)) {
-    const rescue = await zhipuChat(
-      [{ role: 'system', content: 'Верни JSON-массив стемов без пояснений и markdown.' },
-       { role: 'user', content: prompt }],
-      { ...opts, retries: 1 },
-    );
-    parsed = rescue.ok ? parseJsonEnvelope(rescue.content) : null;
-    if (!Array.isArray(parsed)) {
-      console.error(`  ${cat}: не получилось (${res.status || res.error || 'no json'})`);
-      return [];
-    }
-  }
-  return parsed
-    .map((s) => String(s ?? '').toLocaleLowerCase('ru').replace(/ё/g, 'е').trim())
-    .filter((s) => s && s.length >= 3 && !s.includes(' '))
-    .slice(0, 60);
+  return deriveStems(cat, names, { apiKey, model, timeoutMs: 120000, retries: 2 });
 }
 
 const found = await namesByCategory();

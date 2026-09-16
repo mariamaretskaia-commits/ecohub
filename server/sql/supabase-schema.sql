@@ -248,3 +248,11 @@ CREATE TABLE IF NOT EXISTS categorization_log (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_categorization_log_name ON categorization_log(name);
+
+-- Саморастущий словарь: стемы, выведенные ИИ из реальных подтверждённых названий
+CREATE TABLE IF NOT EXISTS categorization_stems (
+  category TEXT NOT NULL,
+  stem TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (category, stem)
+);

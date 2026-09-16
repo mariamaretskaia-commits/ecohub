@@ -3,10 +3,10 @@
  * Сначала пробуем ИИ (Zhipu GLM-4-Flash); при недоступности ИИ – офлайн-словарь
  * с сопоставлением по префиксам слов (устойчиво к склонениям: «носков/носки/носок»).
  */
-import fs from 'fs';
 import { ITEM_CATEGORIES } from './moderation.js';
 import { zhipuChat, zhipuKey, parseJsonEnvelope } from './zai.js';
 import { cacheLookup, cacheStore } from './catcache.js';
+import { generatedRules, ensureGeneratedRules } from './catrules.js';
 
 /**
  * Словарь: категория → стебли (начало слова). Словарь покрывает категории
@@ -179,31 +179,6 @@ const STOP_WORDS = new Set([
   'новая', 'новый', 'новые', 'новую', 'старая', 'старый', 'старые', 'старую',
   'б', 'у']);
 
-/**
- * Сгенерированные ИИ стемы (server/data/generated-rules.json) — расширение
- * ручного словаря. Загружаются при старте; если файла нет — ничего не делаем.
- */
-const GENERATED_RULES = loadGeneratedRules();
-function loadGeneratedRules() {
-  const out = new Map();
-  try {
-    const raw = fs.readFileSync(new URL('../data/generated-rules.json', import.meta.url), 'utf8');
-    const parsed = JSON.parse(raw);
-    for (const [cat, stems] of Object.entries(parsed || {})) {
-      if (!Array.isArray(stems) || !stems.length) continue;
-      const cleaned = stems
-        .map((s) =>
-          String(s ?? '').toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/[\s,.;:!?"'«»()\-––/\\+]/g, ' ').trim())
-        .filter(Boolean)
-        .slice(0, 60);
-      if (cleaned.length) out.set(cat, cleaned);
-    }
-  } catch {
-    /* файла нет или он битый — работаем на ручном словаре */
-  }
-  return out;
-}
-
 export function normalize(s) {
   return String(s || '')
     .toLocaleLowerCase('ru')
@@ -228,8 +203,10 @@ export function categorizeByRules(name) {
     const stems = RULES[cat] || [];
     if (stems.some((stem) => words.some((w) => w.startsWith(stem)))) return cat;
   }
-  for (const [cat, stems] of GENERATED_RULES) {
-    if (stems.some((stem) => words.some((w) => w.startsWith(stem)))) return cat;
+  for (const [cat, stems] of generatedRules()) {
+    for (const stem of stems) {
+      if (words.some((w) => w.startsWith(stem))) return cat;
+    }
   }
   return 'Другое';
 }
@@ -413,6 +390,7 @@ export async function categorizeItems(names, opts = {}) {
     .slice(0, 30);
   if (!list.length) return { items: [], provider: 'rules' };
 
+  await ensureGeneratedRules();
   const cacheHits = new Map();
   await Promise.all(list.filter((n) => !cacheHits.has(n)).map(async (name) => {
     const cat = await cacheLookup(name);

@@ -203,6 +203,12 @@ function ensureSqliteSchema(db) {
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS idx_categorization_log_name ON categorization_log(name);
+    CREATE TABLE IF NOT EXISTS categorization_stems (
+      category TEXT NOT NULL,
+      stem TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (category, stem)
+    );
   `);
 
   const suggCols = db.prepare('PRAGMA table_info(point_suggestions)').all().map((c) => c.name);
