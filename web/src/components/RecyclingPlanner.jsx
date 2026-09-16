@@ -102,7 +102,7 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
   const namesCount = parseNames(text).length;
 
   return (
-    <div className="fixed inset-0 z-40 bg-white px-4 pt-3 pb-6 overflow-y-auto">
+    <div className="fixed inset-0 z-[200] bg-white px-4 pt-3 pb-6 overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Sticker name="share" size={36} alt="разбор вещей" />
