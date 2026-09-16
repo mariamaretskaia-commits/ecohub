@@ -70,8 +70,8 @@ test('categorizeItems: без ключа работает офлайн-слов�
   const res = await categorizeItems(['Куртка', 'Стол'], { categories: RECYCLING_CATEGORIES });
   assert.equal(res.provider, 'rules');
   assert.deepEqual(res.items, [
-    { name: 'Куртка', category: 'Одежда' },
-    { name: 'Стол', category: 'Мебель' },
+    { name: 'Куртка', category: 'Одежда', source: 'rules' },
+    { name: 'Стол', category: 'Мебель', source: 'rules' },
   ]);
 });
 
@@ -82,28 +82,28 @@ test('categorizeItems: пустой список → пустой результ
 
 test('categorizeItems: с фейковым ключом и fetchImpl ИИ-ответ перекрывает словарь', async () => {
   process.env.ZHIPU_API_KEY = 'test-key';
-  const res = await categorizeItems(['Куртка', 'Какая-то вещь'], {
+  const res = await categorizeItems(['Шуба', 'Какая-то вещь'], {
     categories: RECYCLING_CATEGORIES,
     fetchImpl: async () => ({
       ok: true,
       status: 200,
       async json() {
         return {
-          choices: [{ message: { content: '{"Куртка":"Одежда","Какая-то вещь":"Электроника"}' } }],
+          choices: [{ message: { content: '{"Шуба":"Одежда","Какая-то вещь":"Электроника"}' } }],
         };
       },
     }),
   });
   assert.equal(res.provider, 'ai');
   assert.deepEqual(res.items, [
-    { name: 'Куртка', category: 'Одежда' },
-    { name: 'Какая-то вещь', category: 'Электроника' },
+    { name: 'Шуба', category: 'Одежда', source: 'ai' },
+    { name: 'Какая-то вещь', category: 'Электроника', source: 'ai' },
   ]);
 });
 
-test('categorizeItems: битый JSON от ИИ → фолбэк на словарь', async () => {
+test('categorizeItems: битый JSON от ИИ → фолбэк на словарь (и кэш для новых имён)', async () => {
   process.env.ZHIPU_API_KEY = 'test-key';
-  const res = await categorizeItems(['Куртка'], {
+  const res = await categorizeItems(['Пальто', 'Тостер'], {
     categories: RECYCLING_CATEGORIES,
     fetchImpl: async () => ({
       ok: true,
@@ -115,6 +115,18 @@ test('categorizeItems: битый JSON от ИИ → фолбэк на слов�
   });
   assert.equal(res.provider, 'rules');
   assert.equal(res.items[0].category, 'Одежда');
+  assert.equal(res.items[0].source, 'rules');
+  assert.equal(res.items[1].category, 'Бытовая техника');
+
+  const again = await categorizeItems(['Тостер'], {
+    categories: RECYCLING_CATEGORIES,
+    fetchImpl: async () => {
+      throw new Error('не должен вызываться из-за кэша');
+    },
+  });
+  assert.equal(again.provider, 'cache');
+  assert.equal(again.items[0].category, 'Бытовая техника');
+  assert.equal(again.items[0].source, 'cache');
 });
 
 test('categorizeItems: второй проход ИИ вытягивает «Другое» в ближайшую категорию', async () => {
@@ -145,8 +157,8 @@ test('categorizeItems: второй проход ИИ вытягивает «Д�
   assert.equal(calls, 2);
   assert.equal(res.provider, 'ai');
   assert.deepEqual(res.items, [
-    { name: 'Куртка', category: 'Одежда' },
-    { name: 'Мистическая штука', category: 'Электроника' },
+    { name: 'Куртка', category: 'Одежда', source: 'cache' },
+    { name: 'Мистическая штука', category: 'Электроника', source: 'ai' },
   ]);
 });
 

@@ -10,7 +10,7 @@ export function zhipuKey() {
 }
 
 export function zhipuTextModel() {
-  return String(process.env.ZHIPU_TEXT_MODEL || 'glm-5.3-flash').trim();
+  return String(process.env.ZHIPU_TEXT_MODEL || 'glm-4.7-flash').trim();
 }
 
 export function zhipuVisionModel() {
@@ -47,7 +47,16 @@ export function parseJsonEnvelope(text) {
     try {
       return JSON.parse(t.slice(arrStart, arrEnd + 1));
     } catch {
-      return null;
+      /* fall through */
+    }
+  }
+  const lastBraceStart = t.lastIndexOf('{');
+  const lastBraceEnd = t.lastIndexOf('}');
+  if (lastBraceStart !== -1 && lastBraceEnd > lastBraceStart) {
+    try {
+      return JSON.parse(t.slice(lastBraceStart, lastBraceEnd + 1));
+    } catch {
+      /* fall through */
     }
   }
   return null;
@@ -73,6 +82,11 @@ export async function zhipuChat(messages, opts = {}) {
     temperature: opts.temperature ?? 0,
     ...(opts.maxTokens != null ? { max_tokens: opts.maxTokens } : {}),
   };
+  // Отключение reasoning-режима: быстрее и без «пряток» ответа в reasoning_content.
+  const thinkingOff = opts.thinking
+    ? opts.thinking === 'disabled'
+    : String(process.env.ZHIPU_THINKING_DISABLED || '').toLowerCase() === 'true';
+  if (thinkingOff) payload.thinking = { type: 'disabled' };
 
   let lastError = null;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -109,7 +123,14 @@ export async function zhipuChat(messages, opts = {}) {
         return { ok: false, status: resp.status, error: `http_${resp.status}` };
       }
       const data = await resp.json();
-      const content = data?.choices?.[0]?.message?.content;
+      const msg = data?.choices?.[0]?.message;
+      let content = msg?.content;
+      // У reasoning-моделей (flash) ответ иногда уходит в reasoning_content,
+      // если малый max_tokens. Пробуем вытащить JSON из конца рассуждения.
+      if (typeof content !== 'string' || !content.trim()) {
+        const rc = msg?.reasoning_content;
+        if (typeof rc === 'string' && rc.trim()) content = rc;
+      }
       if (typeof content !== 'string') return { ok: false, error: 'malformed' };
       return { ok: true, content };
     } catch (err) {

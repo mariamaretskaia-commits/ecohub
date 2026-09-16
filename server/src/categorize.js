@@ -3,8 +3,10 @@
  * Сначала пробуем ИИ (Zhipu GLM-4-Flash); при недоступности ИИ – офлайн-словарь
  * с сопоставлением по префиксам слов (устойчиво к склонениям: «носков/носки/носок»).
  */
+import fs from 'fs';
 import { ITEM_CATEGORIES } from './moderation.js';
 import { zhipuChat, zhipuKey, parseJsonEnvelope } from './zai.js';
+import { cacheLookup, cacheStore } from './catcache.js';
 
 /**
  * Словарь: категория → стебли (начало слова). Словарь покрывает категории
@@ -177,7 +179,32 @@ const STOP_WORDS = new Set([
   'новая', 'новый', 'новые', 'новую', 'старая', 'старый', 'старые', 'старую',
   'б', 'у']);
 
-function normalize(s) {
+/**
+ * Сгенерированные ИИ стемы (server/data/generated-rules.json) — расширение
+ * ручного словаря. Загружаются при старте; если файла нет — ничего не делаем.
+ */
+const GENERATED_RULES = loadGeneratedRules();
+function loadGeneratedRules() {
+  const out = new Map();
+  try {
+    const raw = fs.readFileSync(new URL('../data/generated-rules.json', import.meta.url), 'utf8');
+    const parsed = JSON.parse(raw);
+    for (const [cat, stems] of Object.entries(parsed || {})) {
+      if (!Array.isArray(stems) || !stems.length) continue;
+      const cleaned = stems
+        .map((s) =>
+          String(s ?? '').toLocaleLowerCase('ru').replace(/ё/g, 'е').replace(/[\s,.;:!?"'«»()\-––/\\+]/g, ' ').trim())
+        .filter(Boolean)
+        .slice(0, 60);
+      if (cleaned.length) out.set(cat, cleaned);
+    }
+  } catch {
+    /* файла нет или он битый — работаем на ручном словаре */
+  }
+  return out;
+}
+
+export function normalize(s) {
   return String(s || '')
     .toLocaleLowerCase('ru')
     .replace(/ё/g, 'е')
@@ -199,6 +226,9 @@ export function categorizeByRules(name) {
   const words = n.split(' ').filter(Boolean);
   for (const cat of RULE_ORDER) {
     const stems = RULES[cat] || [];
+    if (stems.some((stem) => words.some((w) => w.startsWith(stem)))) return cat;
+  }
+  for (const [cat, stems] of GENERATED_RULES) {
     if (stems.some((stem) => words.some((w) => w.startsWith(stem)))) return cat;
   }
   return 'Другое';
@@ -226,8 +256,17 @@ function readCategories(nodes, list, categories) {
   for (const [rawKey, rawValue] of Object.entries(nodes)) {
     const cat = validCategory(String(rawValue || '').trim(), categories);
     if (!cat) continue;
-    const idx = keyIndex.get(normalize(String(rawKey)));
-    if (idx != null) map.set(list[idx], cat);
+    const norm = normalize(String(rawKey));
+    const idx = keyIndex.get(norm);
+    if (idx != null) {
+      map.set(list[idx], cat);
+      continue;
+    }
+    // Резервный формат: ключи — порядковые номера вещей («1», «2», …).
+    const num = Number.parseInt(rawKey, 10);
+    if (Number.isInteger(num) && num >= 1 && num <= list.length && !map.has(list[num - 1])) {
+      map.set(list[num - 1], cat);
+    }
   }
   return map;
 }
@@ -253,6 +292,27 @@ const CATALOG_EXAMPLES = [
   ['Другое', 'редкие вещи, которые не описываются ни одной из категорий выше'],
 ];
 
+/** Семантические описания категорий: «смысл», а не список слов. */
+const CATALOG_DESCRIPTIONS = [
+  ['Авто и запчасти', 'Транспорт и всё, что к нему относится: автомобили, мотоциклы, шины, запчасти, авточехлы, автокресла, велосипедное седло. Велосипед целиком — это уже спорт/хобби.'],
+  ['Ремонт и стройка', 'Инструменты и материалы для ремонта и строительства дома: дрели, шуруповёрты, краски, плитка, ламинат, двери, окна, сантехника, крепёж, обои, кабели/розетки.'],
+  ['Хобби, спорт и туризм', 'Спортинвентарь, туризм и отдых, музыкальные инструменты, книги, настольные игры, рыбалка, дачные развлечения: гантели, мяч, палатка, рюкзак, гитара, книги.'],
+  ['Всё для детей и мам', 'Всё для детей: коляски, игрушки, подгузники, детская одежда и обувь, слинг, велосипеды детские, бутылочки, кроватки, принадлежности для мам и малышей.'],
+  ['Мебель', 'Предметы мебели для дома: столы, стулья, диваны, кровати, шкафы, комоды, полки, матрасы, зеркала, тумбы.'],
+  ['Женский гардероб', 'Явно женская одежда, обувь и аксессуары: платья, юбки, блузы, женские сапоги и туфли, сумочки, колготки, украшения к одежде. Нейтральную одежду без пола (носки, футболки) сюда НЕ относи.'],
+  ['Одежда', 'Нейтральная одежда и обувь без явного пола: носки, футболки, майки, брюки, куртки, шапки, шарфы, кроссовки, перчатки, пижамы, платки.'],
+  ['Мужской гардероб', 'Явно мужская одежда: костюмы, галстуки, сорочки, запонки, смокинги, мужская обувь.'],
+  ['Для животных', 'Всё для питомцев: корм, клетки, переноски, поводки, ошейники, лежанки, аквариумы и террариумы, лотки, игрушки для животных.'],
+  ['Всё для дома', 'Посуда и кухонная утварь, текстиль, декор, светильники, хозяйственные и канцелярские мелочи: тарелки, кастрюли, шторы, полотенца, ковры, коробки, швейные принадлежности.'],
+  ['Телефоны и планшеты', 'Мобильные устройства и аксессуары к ним: смартфоны, планшеты, чехлы, зарядки, кнопочные телефоны.'],
+  ['Сад и огород', 'Растения и уход за ними: комнатные и садовые цветы, рассада, семена, грунт, горшки, лейки, садовый инструмент, удобрения, теплицы.'],
+  ['Электроника', 'Аудио и видео, фототехника, носители информации и мелкая электроника: кассеты, видеокассеты, аудиокассеты, виниловые пластинки, наушники, колонки, фотоаппараты, часы, пульты, кабели, батарейки. Компьютерная и бытовая техника — отдельные категории.'],
+  ['Компьютерная техника', 'Компьютеры, ноутбуки, периферия и комплектующие: мониторы, клавиатуры, мыши, принтеры, роутеры, флешки, видеокарты, блоки питания.'],
+  ['Бытовая техника', 'Техника для дома: телевизоры, холодильники, стиральные и посудомоечные машины, плиты, пылесосы, утюги, фены, кофемашины, чайники, микроволновки.'],
+  ['Красота и здоровье', 'Косметика и уход, парфюмерия, украшения и бижутерия, аксессуары для волос, средства гигиены и медизделия: шампунь, кремы, бусы, серьги, браслеты, кольца, заколки, тонометр, глюкометр, аптечка.'],
+  ['Другое', 'Вещи, которые действительно не относятся ни к одной из перечисленных категорий.'],
+];
+
 /**
  * Пробуем ИИ (Zhipu). Возвращает Map названиe→категория либо null при недоступности.
  * При forceClosest=true велит выбирать ближайшую категорию (повторный проход для «Другое»).
@@ -265,12 +325,45 @@ async function aiCategorize(list, opts = {}, forceClosest = false) {
     : ITEM_CATEGORIES;
   if (!list.length) return new Map();
   const numbered = list.map((n, i) => `${i + 1}. ${n}`);
+  const lines = buildPrompt(categories, forceClosest);
+  const callOpts = {
+    apiKey,
+    model: opts.model,
+    fetchImpl: opts.fetchImpl,
+    timeoutMs: opts.timeoutMs ?? 45000,
+    retries: opts.retries ?? 1,
+    maxTokens: 4000,
+  };
+  let res = await zhipuChat(
+    [{ role: 'system', content: lines.join('\n') }, { role: 'user', content: numbered.join('\n') }],
+    callOpts,
+  );
+  let parsed = res.ok ? parseJsonEnvelope(res.content) : null;
+  if (!parsed || typeof parsed !== 'object') {
+    if (process.env.DEBUG_CAT) console.error('[aiCategorize] не JSON', res.status, res.error, JSON.stringify(res.content)?.slice(0, 160));
+    // Страховка: модель начала «объяснять» вместо ответа — просим строгий JSON.
+    const rescue = await zhipuChat(
+      [{ role: 'system', content: 'Ты возвращаешь категории для вещей ТОЛЬКО в виде JSON без пояснений. Формат: {"1":"Категория","2":"Категория"} — где ключ это порядковый номер вещи из списка, значение — категория из списка, как есть, без изменений.' },
+       { role: 'user', content: numbered.join('\n') }],
+      { ...callOpts, maxTokens: 1500, retries: 0 },
+    );
+    parsed = rescue.ok ? parseJsonEnvelope(rescue.content) : null;
+    if (process.env.DEBUG_CAT && parsed) console.error('[aiCategorize] rescue ok');
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const map = readCategories(parsed, list, categories);
+  return map.size ? map : null;
+}
+
+function buildPrompt(categories, forceClosest) {
   const lines = [
     'Ты – сортировщик вещей для приложения безвозмездного обмена и переработки «EcoHub».',
     `Отнеси каждую вещь строго к ОДНОЙ категории из списка: ${categories.join(', ')}.`,
     'Не придумывай свои категории и не выходи за пределы списка.',
     'Игнорируй количество, размеры, состояние и лишние слова («3 пары», «б/у», «42 размер», «старая»).',
-    'Типичные вещи по категориям (ориентир):',
+    'Определяй категорию ПО СМЫСЛУ вещи, а не по совпадению слов. Смысл категорий:',
+    ...CATALOG_DESCRIPTIONS.filter(([c]) => categories.includes(c)).map(([c, desc]) => `«${c}»: ${desc}`),
+    'Типичные примеры по категориям (дополнительный ориентир):',
     ...CATALOG_EXAMPLES.filter(([c]) => categories.includes(c)).map(([c, ex]) => `«${c}»: ${ex}.`),
   ];
   if (categories.includes('Одежда')) {
@@ -298,31 +391,17 @@ async function aiCategorize(list, opts = {}, forceClosest = false) {
   lines.push(
     'Верни ТОЛЬКО валидный JSON-объект вида {"вещь":"Категория", ...}, где ключи – дословные названия вещей из списка, значения – категории без изменений.',
   );
-  const res = await zhipuChat(
-    [{ role: 'system', content: lines.join('\n') }, { role: 'user', content: numbered.join('\n') }],
-    {
-      apiKey,
-      model: opts.model,
-      fetchImpl: opts.fetchImpl,
-      timeoutMs: opts.timeoutMs,
-      retries: opts.retries ?? 1,
-      maxTokens: 1400,
-    },
-  );
-  if (!res.ok) return null;
-  const parsed = parseJsonEnvelope(res.content);
-  if (!parsed || typeof parsed !== 'object') return null;
-  const map = readCategories(parsed, list, categories);
-  return map.size ? map : null;
+  return lines;
 }
 
 /**
+
+/**
  * Категоризация списка названий вещей.
- * Двухпроходный ИИ: первый проход – все вещи; второй – только те, что упали
- * в «Другое»/пропущены, с приказом выбрать ближайшую категорию. Затем правила.
+ * Порядок: кэш → ИИ (двухпроходный) → правила. Результат пишется в кэш.
  * @param {string[]} names
  * @param {object} [opts] – apiKey, model, fetchImpl, timeoutMs, retries, categories
- * @returns {Promise<{items:Array<{name:string, category:string}>, provider:'ai'|'rules'}>}
+ * @returns {Promise<{items:Array<{name:string, category:string, source:'cache'|'ai'|'rules'}>, provider:'cache'|'ai'|'rules'}>}
  */
 export async function categorizeItems(names, opts = {}) {
   const categories = Array.isArray(opts.categories) && opts.categories.length
@@ -334,37 +413,53 @@ export async function categorizeItems(names, opts = {}) {
     .slice(0, 30);
   if (!list.length) return { items: [], provider: 'rules' };
 
-  let provider = 'rules';
+  const cacheHits = new Map();
+  await Promise.all(list.filter((n) => !cacheHits.has(n)).map(async (name) => {
+    const cat = await cacheLookup(name);
+    if (cat) cacheHits.set(name, cat);
+  }));
+  const missList = list.filter((name) => !cacheHits.has(name));
+
+  let provider = 'cache';
   let byName = null;
-  try {
-    const first = await aiCategorize(list, opts);
-    if (first && first.size) {
-      byName = first;
-      provider = 'ai';
-      const pending = list.filter((name) => {
-        const cat = byName.get(name);
-        return !cat || cat === 'Другое';
-      });
-      if (pending.length) {
-        const second = await aiCategorize(pending, opts, true);
-        if (second && second.size) {
-          for (const name of pending) {
-            const cat = validCategory(second.get(name), categories);
-            if (cat && cat !== 'Другое') byName.set(name, cat);
+  if (missList.length) {
+    provider = 'rules';
+    try {
+      const first = await aiCategorize(missList, opts);
+      if (first && first.size) {
+        byName = first;
+        provider = 'ai';
+        const pending = missList.filter((name) => {
+          const cat = byName.get(name);
+          return !cat || cat === 'Другое';
+        });
+        if (pending.length) {
+          const second = await aiCategorize(pending, opts, true);
+          if (second && second.size) {
+            for (const name of pending) {
+              const cat = validCategory(second.get(name), categories);
+              if (cat && cat !== 'Другое') byName.set(name, cat);
+            }
           }
         }
       }
+    } catch {
+      byName = null;
     }
-  } catch {
-    byName = null;
   }
 
-  const items = list.map((name) => ({
-    name,
-    category:
-      validCategory(byName?.get(name), categories)
-      || validCategory(categorizeByRules(name), categories)
-      || 'Другое',
-  }));
+  const items = list.map((name) => {
+    let source = 'rules';
+    let category = cacheHits.get(name);
+    if (category && validCategory(category, categories)) {
+      source = 'cache';
+    } else {
+      const ai = byName ? validCategory(byName.get(name), categories) : null;
+      category = ai || validCategory(categorizeByRules(name), categories) || 'Другое';
+      source = ai ? 'ai' : 'rules';
+    }
+    if (category !== 'Другое') cacheStore(name, category);
+    return { name, category, source };
+  });
   return { items, provider };
 }

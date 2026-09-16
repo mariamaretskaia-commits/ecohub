@@ -236,6 +236,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ names }),
     }),
+  categorizeFix: (name, category) =>
+    request('/api/vision/categorize-fix', {
+      method: 'POST',
+      body: JSON.stringify({ name, category }),
+    }),
   planRecycling: ({ categories, lat, lng } = {}) =>
     request('/api/vision/route', {
       method: 'POST',

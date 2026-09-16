@@ -18,7 +18,9 @@ import { moderateItem, auditItemAsync } from './trust/pipeline.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
 import { planRecyclingRoute, hasPointForCategory } from './vision.js';
-import { categorizeItems } from './categorize.js';
+import { categorizeItems, categorizeByRules } from './categorize.js';
+import { cacheStore } from './catcache.js';
+import { logCategorization, logFix } from './catlog.js';
 
 function sendError(res, err) {
   const req = res.req;
@@ -712,11 +714,37 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
         return res.status(400).json({ error: `Не больше ${MAX_CATEGORIZE_NAMES} вещей за раз` });
       }
       const { items, provider } = await categorizeItems(list, { categories: RECYCLING_CATEGORIES });
+      logCategorization({
+        user: req.telegramUser,
+        entries: items.map((it) => ({
+          name: it.name,
+          category: it.category,
+          provider: it.source === 'cache' ? 'cache' : provider,
+          category_rules: categorizeByRules(it.name),
+        })),
+      });
       const withPoints = await Promise.all(items.map(async (it) => ({
         ...it,
         pointFound: await hasPointForCategory(it.category),
       })));
       res.json({ items: withPoints, provider });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/vision/categorize-fix', authMiddleware, async (req, res) => {
+    try {
+      const { name, category } = req.body || {};
+      const cleanName = String(name ?? '').trim().slice(0, 200);
+      const cleanCat = String(category ?? '').trim();
+      if (!cleanName) return res.status(400).json({ error: 'Название вещи обязательно' });
+      if (!RECYCLING_CATEGORIES.includes(cleanCat)) {
+        return res.status(400).json({ error: 'Некорректная категория' });
+      }
+      cacheStore(cleanName, cleanCat);
+      logFix(req.telegramUser, cleanName, cleanCat);
+      res.json({ ok: true });
     } catch (err) {
       sendError(res, err);
     }

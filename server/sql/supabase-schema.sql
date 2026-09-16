@@ -227,3 +227,24 @@ banned_by TEXT,
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_rules_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_privacy_at TIMESTAMPTZ;
+
+-- Кэш категоризации: имя вещи -> категория (быстрый повтор без ИИ)
+CREATE TABLE IF NOT EXISTS categorization_cache (
+  name TEXT PRIMARY KEY,
+  category TEXT NOT NULL,
+  cnt INTEGER NOT NULL DEFAULT 1,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Лог категоризации: история для самообучения словаря
+CREATE TABLE IF NOT EXISTS categorization_log (
+  id BIGSERIAL PRIMARY KEY,
+  user_telegram_id TEXT,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  category_rules TEXT,
+  provider TEXT,
+  corrected INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_categorization_log_name ON categorization_log(name);

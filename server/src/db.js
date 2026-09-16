@@ -186,6 +186,23 @@ function ensureSqliteSchema(db) {
       created_at TEXT DEFAULT (datetime('now')),
       user_id INTEGER REFERENCES users(id)
     );
+    CREATE TABLE IF NOT EXISTS categorization_cache (
+      name TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      cnt INTEGER NOT NULL DEFAULT 1,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS categorization_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_telegram_id TEXT,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      category_rules TEXT,
+      provider TEXT,
+      corrected INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_categorization_log_name ON categorization_log(name);
   `);
 
   const suggCols = db.prepare('PRAGMA table_info(point_suggestions)').all().map((c) => c.name);

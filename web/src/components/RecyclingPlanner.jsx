@@ -60,10 +60,11 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
     }
   };
 
-  const changeCategory = (idx, category) => {
+  const changeCategory = (idx, category, name) => {
     setItems((prev) => prev.map((row, i) => (
       i === idx ? { ...row, category } : row
     )));
+    if (name) api.categorizeFix(name, category).catch(() => {});
   };
 
   const uniqueCategories = () => [...new Set(items.map((row) => row.category).filter(Boolean))];
@@ -159,7 +160,7 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
                 </div>
                 <select
                   value={row.category}
-                  onChange={(e) => changeCategory(idx, e.target.value)}
+                  onChange={(e) => changeCategory(idx, e.target.value, row.name)}
                   className="field !p-2 text-sm w-36"
                 >
                   {RECYCLING_CATEGORIES.map((c) => (
