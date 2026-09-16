@@ -24,7 +24,7 @@ test('categorizeByRules: типичные вещи по словарю', () => {
   assert.equal(categorizeByRules('Корм для кота'), 'Для животных');
 });
 
-test('categorizeByRules: пример живой ленты — носки/пальто/радио', () => {
+test('categorizeByRules: пример живой ленты – носки/пальто/радио', () => {
   assert.equal(categorizeByRules('3 пары носков'), 'Одежда');
   assert.equal(categorizeByRules('тёплое пальто'), 'Одежда');
   assert.equal(categorizeByRules('радио'), 'Электроника');

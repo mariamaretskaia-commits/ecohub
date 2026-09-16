@@ -55,7 +55,7 @@ export function parseJsonEnvelope(text) {
 
 /**
  * Вызов Zhipu chat completions (текстовая или мультимодальная подпись).
- * @param {Array} messages  — массив сообщений OpenAI-формата (content может быть строкой или массивом)
+ * @param {Array} messages  – массив сообщений OpenAI-формата (content может быть строкой или массивом)
  * @returns {Promise<{ok:boolean, content?:string, status?:number, error?:string}>}
  */
 export async function zhipuChat(messages, opts = {}) {

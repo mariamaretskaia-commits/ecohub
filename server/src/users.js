@@ -63,7 +63,7 @@ export async function findOrCreateUser(telegramUser) {
   let user = await get('SELECT * FROM users WHERE telegram_id = ?', telegramId);
 
   if (!user) {
-    // До согласия сохраняем минимум — только идентификатор, нужный для фиксации согласия.
+    // До согласия сохраняем минимум – только идентификатор, нужный для фиксации согласия.
     try {
       const result = await run('INSERT INTO users (telegram_id) VALUES (?)', telegramId);
       user = await getUserById(result.lastInsertRowid);
@@ -229,7 +229,7 @@ export async function deleteUserData(userId) {
   await run('DELETE FROM point_suggestions WHERE user_id = ?', userId);
   await run('DELETE FROM users WHERE id = ?', userId);
 
-  // Мета-записи поддержки: режим + карты ответов, где пользователь — автор запроса.
+  // Мета-записи поддержки: режим + карты ответов, где пользователь – автор запроса.
   if (chatId) {
     await run('DELETE FROM meta WHERE key = ?', `support_mode_${chatId}`);
     const devMsgs = await all("SELECT key, value FROM meta WHERE key LIKE 'support_devmsg_%'");
@@ -241,7 +241,7 @@ export async function deleteUserData(userId) {
     }
   }
 
-  // Модерационные журналы обезличиваются: события сохраняются, персональные данные — нет.
+  // Модерационные журналы обезличиваются: события сохраняются, персональные данные – нет.
   await run(
     'UPDATE mod_messages SET sender_telegram_id = NULL, receiver_telegram_id = NULL WHERE sender_telegram_id = ? OR receiver_telegram_id = ?',
     chatId,

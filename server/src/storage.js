@@ -63,7 +63,7 @@ export async function storeItemPhotos(files) {
 
 /**
  * Генерирует JPEG-миниатюру (≈640px по большей стороне, q0.8) для data/URL-фото,
- * чтобы лента была чёткой. Ошибки не бросает — вернёт null для битого файла.
+ * чтобы лента была чёткой. Ошибки не бросает – вернёт null для битого файла.
  */
 export async function thumbDataUrl(buffer, { maxSide = 640, quality = 0.8 } = {}) {
   try {
@@ -80,17 +80,23 @@ export async function thumbDataUrl(buffer, { maxSide = 640, quality = 0.8 } = {}
   }
 }
 
-/** Создаёт массив миниатюр для multer-files (память/диск), параллельно до 4. */
+/** Создаёт массив миниатюр для multer-files (память/диск), параллельно до 3. */
 export async function makeItemThumbs(files) {
   const list = Array.isArray(files) ? files : [];
   const bodies = [];
   for (const file of list) {
     bodies.push(file.buffer || (file.path ? await fs.promises.readFile(file.path) : null));
   }
-  const thumbs = [];
-  for (let i = 0; i < bodies.length; i += 1) {
-    thumbs.push(await thumbDataUrl(bodies[i]));
-  }
+  const thumbs = new Array(bodies.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < bodies.length) {
+      const i = next;
+      next += 1;
+      thumbs[i] = await thumbDataUrl(bodies[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(3, bodies.length) }, worker));
   return thumbs;
 }
 

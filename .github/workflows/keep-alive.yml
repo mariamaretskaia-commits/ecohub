@@ -1,0 +1,18 @@
+name: keep-alive
+
+on:
+  schedule:
+    # Free-tier Render засыпает после ~15 мин простоя; пинг каждые 9 минут
+    # держит сервис бодрствующим, чтобы не было ни холодных стартов, ни
+    # писем «сервер проснулся».
+    - cron: '*/9 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping EcoHub health endpoint
+        shell: bash
+        run: |
+          curl -fsS -m 30 https://ecohub-baoc.onrender.com/health || true

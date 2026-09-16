@@ -40,7 +40,7 @@ export function scorePoint(point, type = '') {
   if (weekendOpen(hours)) score += 8;
   if (/можно сдать и взять|и приём, и выдача/.test(text)) score += 14;
 
-  if (/14:00[-–—]15:00/.test(hours)) score -= 24;
+  if (/14:00[-––]15:00/.test(hours)) score -= 24;
   if (/уточняйте перед визитом|звоните заранее/.test(text)) score -= 4;
   if (!point.phone) score -= 6;
 

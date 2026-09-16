@@ -67,7 +67,7 @@ async function _sendNote(bot, chatId, text, extra = {}) {
 
 function _adminNote(senderName, score, level, category, msgId) {
   return [
-    `🚨 **Модерация** — ${category || 'подозрительная активность'}`,
+    `🚨 **Модерация** – ${category || 'подозрительная активность'}`,
     `Пользователь: ${senderName}`,
     `Trust: ${score} (${level})`,
     '',
@@ -78,27 +78,27 @@ function _adminNote(senderName, score, level, category, msgId) {
 function _receiverNote(senderName, category, msgId) {
   return [
     `⚠️ Сообщение от ${senderName} задержано модерацией (${category || 'проверка'}).`,
-    'Если вы видите подозрительное сообщение — используйте кнопку ниже.',
+    'Если вы видите подозрительное сообщение – используйте кнопку ниже.',
   ].join('\n');
 }
 
 function _senderBlockedNote() {
-  return '⛔ Ваше сообщение отклонено модерацией. Если вы считаете, что это ошибка — напишите /start боту.';
+  return '⛔ Ваше сообщение отклонено модерацией. Если вы считаете, что это ошибка – напишите /start боту.';
 }
 
 // ─── public API ─────────────────────────────────────────────────────
 
 /**
  * @param {object} params
- * @param {string}        params.senderTg       — telegram_id отправителя
- * @param {string|null}   params.receiverTg     — telegram_id получателя (чат)
- * @param {number|null}   params.wantId         — item_wants.id (для чата)
- * @param {number|null}   params.itemId         — items.id (для объявлений)
- * @param {string}        params.senderName     — отображаемое имя отправителя
+ * @param {string}        params.senderTg       – telegram_id отправителя
+ * @param {string|null}   params.receiverTg     – telegram_id получателя (чат)
+ * @param {number|null}   params.wantId         – item_wants.id (для чата)
+ * @param {number|null}   params.itemId         – items.id (для объявлений)
+ * @param {string}        params.senderName     – отображаемое имя отправителя
  * @param {string}        params.text
  * @param {string|null}   params.photoUrl
- * @param {boolean}       params.firstMessage   — первое сообщение в переписке?
- * @param {object|null}   params.bot            — Telegraf instance
+ * @param {boolean}       params.firstMessage   – первое сообщение в переписке?
+ * @param {object|null}   params.bot            – Telegraf instance
  * @returns {Promise<object>} verdict
  */
 export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, photoUrl, firstMessage, bot, senderName }) {

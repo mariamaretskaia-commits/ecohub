@@ -16,7 +16,7 @@ function clean(html) {
     .replace(/<br\s*\/?>/gi, ' | ')
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&mdash;|&ndash;|—/g, '–')
+    .replace(/&mdash;|&ndash;|–/g, '–')
     .replace(/\s+/g, ' ')
     .trim();
 }

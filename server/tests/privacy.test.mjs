@@ -84,7 +84,7 @@ test('acceptLegal дозаполняет имя и фото после согл�
   assert.equal(row.photo_url, 'https://example.com/avatar.jpg');
 });
 
-test('после согласия имя и фото обновляются при входе, до согласия — нет', async () => {
+test('после согласия имя и фото обновляются при входе, до согласия – нет', async () => {
   const id = nextTgId();
   let user = await findOrCreateUser(tg(id, { first_name: 'Старый', photo_url: null }));
   const before = await get('SELECT photo_url FROM users WHERE id = ?', user.id);
@@ -197,7 +197,7 @@ test('токен скачивания одноразовый и привязан
   assert.deepEqual(consumeDownloadToken(token), { error: 'invalid' }, 'повторное использование отклоняется');
 });
 
-test('токен скачивания: без токена и с неверным токеном — отказ', () => {
+test('токен скачивания: без токена и с неверным токеном – отказ', () => {
   _resetDownloadTokens();
   assert.deepEqual(consumeDownloadToken(), { error: 'missing' });
   assert.deepEqual(consumeDownloadToken(''), { error: 'missing' });

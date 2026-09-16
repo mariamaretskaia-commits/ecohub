@@ -46,19 +46,25 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** Wake free-tier host (Render sleep) before real API calls. */
+/** Сервер недавно отвечал — пропускаем пробуждение (сессионный флаг, ~30 с свежести). */
+let warmUntil = 0;
+function markWarm() { warmUntil = Date.now() + 30_000; }
+function isWarm() { return Date.now() < warmUntil; }
+
+/** Wake free-tier host (Render sleep) before real API calls — но только когда сервер давно молчал. */
 async function wakeServer() {
+  if (isWarm()) return true;
   const bases = [];
   if (API_BASE) bases.push(API_BASE.replace(/\/$/, ''));
   else bases.push('');
   const healthUrls = bases.map((b) => `${b}/health`);
-  const gaps = [0, 2000, 4000, 6000, 8000, 10000, 12000];
+  const gaps = [0, 800, 1600, 2400];
   for (let i = 0; i < gaps.length; i += 1) {
     if (gaps[i]) await sleep(gaps[i]);
     for (const url of healthUrls) {
       try {
-        const res = await fetch(url, { cache: 'no-store' });
-        if (res.ok) return true;
+        const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+        if (res.ok) { markWarm(); return true; }
       } catch {
         /* keep trying */
       }
@@ -70,13 +76,13 @@ async function wakeServer() {
 /** Retries help when a free host is waking from sleep (cold start). */
 async function request(path, options = {}) {
   const { skipWake, ...fetchOpts } = options;
-  if (path.startsWith('/api') && !skipWake) {
+  if (path.startsWith('/api') && !skipWake && !isWarm()) {
     await wakeServer();
   }
 
   const urls = apiUrls(path);
-  const attempts = isTelegramWebApp() ? 8 : 3;
-  const gaps = [0, 2000, 3000, 4000, 5000, 7000, 9000, 12000];
+  const attempts = isTelegramWebApp() ? 6 : 4;
+  const gaps = [0, 500, 1000, 2500];
 
   let lastError = new Error('Request failed');
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -86,11 +92,13 @@ async function request(path, options = {}) {
         const res = await fetch(url, {
           ...fetchOpts,
           cache: 'no-store',
+          signal: fetchOpts.signal || AbortSignal.timeout(20000),
           headers: {
             ...getHeaders(),
             ...fetchOpts.headers,
           },
         });
+        markWarm();
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: 'Request failed' }));
           lastError = new Error(err.error || 'Request failed');
@@ -120,10 +128,10 @@ function authUploadHeaders() {
 }
 
 async function uploadItem(path, method, formData) {
-  await wakeServer();
+  if (!isWarm()) await wakeServer();
   const urls = apiUrls(path);
-  const attempts = isTelegramWebApp() ? 8 : 3;
-  const gaps = [0, 2000, 3000, 4000, 5000, 7000, 9000, 12000];
+  const attempts = isTelegramWebApp() ? 6 : 4;
+  const gaps = [0, 500, 1000, 2500];
 
   let lastError = new Error('Request failed');
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -132,9 +140,11 @@ async function uploadItem(path, method, formData) {
       try {
         const res = await fetch(url, {
           method,
+          signal: AbortSignal.timeout(60000),
           headers: authUploadHeaders(),
           body: formData,
         });
+        markWarm();
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: 'Request failed' }));
           lastError = new Error(err.error || 'Request failed');

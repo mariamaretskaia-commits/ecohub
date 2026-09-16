@@ -1,7 +1,7 @@
 /**
  * DDL для таблиц Trust & Safety.
- * - TRUST_SQLITE_DDL — локальная SQLite (server/data/eco-grodno.db)
- * - TRUST_PG_DDL     — продакшн Postgres (Render/Supabase)
+ * - TRUST_SQLITE_DDL – локальная SQLite (server/data/eco-grodno.db)
+ * - TRUST_PG_DDL     – продакшн Postgres (Render/Supabase)
  *
  * Таблицы версионируются кодом: initDb() применяет их при каждом старте.
  */

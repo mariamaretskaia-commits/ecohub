@@ -194,7 +194,7 @@ export default function ItemForm({ item = null, initial = null, onClose, onSaved
         </button>
         {!editing && (
           <p className="type-empty text-center text-xs leading-relaxed">
-            Если за 21 день вещь никто не заберёт, объявление удалится автоматически — заранее придёт напоминание.
+            Если за 21 день вещь никто не заберёт, объявление удалится автоматически – заранее придёт напоминание.
           </p>
         )}
       </form>

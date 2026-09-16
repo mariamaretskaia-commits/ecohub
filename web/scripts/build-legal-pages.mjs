@@ -32,7 +32,7 @@ function render(doc) {
   parts.push('<head>');
   parts.push('<meta charset="utf-8">');
   parts.push('<meta name="viewport" content="width=device-width, initial-scale=1">');
-  parts.push(`<title>${doc.title} — EcoHub</title>`);
+  parts.push(`<title>${doc.title} – EcoHub</title>`);
   parts.push(`<style>${STYLE}</style>`);
   parts.push('</head>');
   parts.push('<body>');

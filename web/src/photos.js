@@ -1,5 +1,5 @@
 /** Convert any image file (incl. HEIC via browser decode when possible) to JPEG File for reliable upload. */
-export async function fileToJpeg(file, { maxSide = 1600, quality = 0.85 } = {}) {
+export async function fileToJpeg(file, { maxSide = 1200, quality = 0.8 } = {}) {
   if (!file) return null;
 
   const bitmap = await loadBitmap(file);

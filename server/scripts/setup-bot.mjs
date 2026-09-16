@@ -1,6 +1,6 @@
 /**
  * Настраивает бота через Bot API и проверяет @username.
- * @username нельзя переименовать — только новый бот через /newbot в BotFather.
+ * @username нельзя переименовать – только новый бот через /newbot в BotFather.
  */
 import dotenv from 'dotenv';
 import path from 'path';

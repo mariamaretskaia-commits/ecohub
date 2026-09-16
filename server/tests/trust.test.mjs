@@ -74,7 +74,7 @@ test('censorText: заменяет совпадения на [***]', () => {
   assert.equal(/кокс/i.test(censored), false);
 });
 
-test('censorText: чистое сообщение — без изменений', () => {
+test('censorText: чистое сообщение – без изменений', () => {
   const { censored, count } = tf.censorText('отдам стул в хорошем состоянии');
   assert.equal(count, 0);
   assert.equal(censored, 'отдам стул в хорошем состоянии');
@@ -143,12 +143,12 @@ test('trust: подтверждённые репорты штрафуют сил
   assert.equal(score, 30);
 });
 
-test('trust: неподтверждённые репорты — половина веса', () => {
+test('trust: неподтверждённые репорты – половина веса', () => {
   const [score] = ts.compute({ acct_age_days: 45, has_avatar: true, has_username: true, reports_30d: 2, confirmed_reports_30d: 0 });
   assert.equal(score, 45);
 });
 
-test('trust: suspicious first msg — одноразовый штраф 20', () => {
+test('trust: suspicious first msg – одноразовый штраф 20', () => {
   const [s1] = ts.compute({ acct_age_days: 45, has_avatar: true, has_username: true, suspicious_first_msg: true, first_msg_penalty_applied: false });
   const [s2] = ts.compute({ acct_age_days: 45, has_avatar: true, has_username: true, suspicious_first_msg: true, first_msg_penalty_applied: true });
   assert.equal(s1, 40);

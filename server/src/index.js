@@ -127,7 +127,7 @@ async function setupTelegram(botInstance, url) {
   await registerBotCommands(botInstance.telegram);
   try {
     await botInstance.telegram.setChatMenuButton({ menu_button: { type: 'commands' } });
-    console.log('🤖 Кнопка меню (все) — список команд');
+    console.log('🤖 Кнопка меню (все) – список команд');
   } catch (err) {
     console.warn('[telegram] setChatMenuButton (default) failed:', err.message);
   }
@@ -137,7 +137,7 @@ async function setupTelegram(botInstance, url) {
     for (const chatId of devChatIds) {
       try {
         await botInstance.telegram.setChatMenuButton({ chat_id: chatId, menu_button: { type: 'default' } });
-        console.log(`🤖 Кнопка меню dev-чата ${chatId} — по умолчанию (как у всех)`);
+        console.log(`🤖 Кнопка меню dev-чата ${chatId} – по умолчанию (как у всех)`);
       } catch (err) {
         console.warn(`[telegram] setChatMenuButton (dev chat ${chatId}) failed:`, err.message);
       }
@@ -146,7 +146,7 @@ async function setupTelegram(botInstance, url) {
     console.warn('[telegram] dev chat button reset failed:', err.message);
   }
   const hookUrl = `${url.replace(/\/$/, '')}/telegram/webhook`;
-  console.log(`🤖 Имя и описание бота не меняем — остаются как настроено вручную`);
+  console.log(`🤖 Имя и описание бота не меняем – остаются как настроено вручную`);
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       const hookSecret = String(process.env.WEBHOOK_SECRET || '').trim();

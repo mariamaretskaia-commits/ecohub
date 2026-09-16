@@ -31,7 +31,7 @@ function plannerCoords(loc) {
 /**
  * «Разобрать вещи»: список вещей → категории (Zhipu + словарь) →
  * маршрут по пунктам приёма рядом с выбранной на карте локацией.
- * Не влияет на публикацию в ленте — только планирование.
+ * Не влияет на публикацию в ленте – только планирование.
  */
 export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
   const [text, setText] = useState('');

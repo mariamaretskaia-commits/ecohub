@@ -80,7 +80,7 @@ const TYPE_NAME = {
 
 function cleanName(text) {
   return String(text || '')
-    .replace(/^[\s\d.;:\-—()"\u00A0]+/, '')
+    .replace(/^[\s\d.;:\-–()"\u00A0]+/, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

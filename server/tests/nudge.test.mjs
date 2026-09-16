@@ -63,7 +63,7 @@ function nextTg() {
   return `nudge-${Date.now()}-${seq}`;
 }
 
-/** Вставка объявления; значения datetime('...') вычисляются в SQL, остальные — параметры. */
+/** Вставка объявления; значения datetime('...') вычисляются в SQL, остальные – параметры. */
 async function insertItem(userId, over = {}) {
   const columns = ['user_id', 'title', 'description', 'photo_url', 'district', 'category', 'type', 'status'];
   const params = [userId, over.title || 'Пальто', '', over.photo_url ?? null, 'Ленинский', over.category || 'Одежда', 'free', over.status || 'active'];

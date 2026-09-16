@@ -52,7 +52,7 @@ function adaptSql(sql) {
 async function initSqlite() {
   const dataDir = path.join(__dirname, '..', 'data');
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  // Тесты задают DATABASE_URL='' — изолируемся в память, чтобы параллельный
+  // Тесты задают DATABASE_URL='' – изолируемся в память, чтобы параллельный
   // запуск node --test не ловил «database is locked» на общем файле.
   const dbPath =
     process.env.DATABASE_URL === '' ? ':memory:' : path.join(dataDir, 'eco-grodno.db');

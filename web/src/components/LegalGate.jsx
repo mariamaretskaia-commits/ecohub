@@ -73,7 +73,7 @@ export default function LegalGate({ onDone }) {
           {loading ? 'Сохраняем…' : 'Я согласен с условиями'}
         </button>
         <button type="button" className="btn-secondary mt-3 w-full" onClick={() => tg.close()}>
-          Не согласен — выйти
+          Не согласен – выйти
         </button>
 
         <p className="type-kicker mt-6 opacity-40 tracking-wide">© 2026</p>

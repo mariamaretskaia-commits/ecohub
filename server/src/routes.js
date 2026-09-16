@@ -28,7 +28,7 @@ function sendError(res, err) {
   );
   if (req && err?.stack) console.error(err.stack);
   if (/^(22P02|22P01|22007|22008)$/.test(String(err?.code || ''))) {
-    return res.status(400).json({ error: 'Не удалось сохранить данные. Мы уже знаем об ошибке — попробуйте чуть позже.' });
+    return res.status(400).json({ error: 'Не удалось сохранить данные. Мы уже знаем об ошибке – попробуйте чуть позже.' });
   }
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
 }
@@ -205,7 +205,7 @@ function parseThumbs(row) {
 
 /**
  * Лёгкое представление объявления для ленты: photo_thumbs предпочитаем полным
- * фото, чтобы список не весил мегабайты base64. Полные фото — только в детале.
+ * фото, чтобы список не весил мегабайты base64. Полные фото – только в детале.
  */
 function forFeedList(row) {
   if (!row) return row;
@@ -332,16 +332,15 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
     try {
       const user = await findOrCreateUser(req.telegramUser);
       if (!requireCompleteProfile(user, res)) return;
-      const { title, description, district, category, oblast, settlement } = req.body;
+      const { title, description, district, category: rawCategory, oblast, settlement } = req.body;
 
-      if (!title || !district || !category || !oblast || !settlement) {
+      if (!title || !district || !rawCategory || !oblast || !settlement) {
         return res.status(400).json({ error: 'Заполните обязательные поля' });
       }
-      const categoryNorm = normalizeCategory(category);
-      if (!categoryNorm || !ITEM_CATEGORIES.includes(categoryNorm)) {
+      const category = normalizeCategory(rawCategory);
+      if (!category || !ITEM_CATEGORIES.includes(category)) {
         return res.status(400).json({ error: 'Выберите категорию из списка' });
       }
-      category = categoryNorm;
 
       assertCleanListing(title, description);
 
@@ -384,7 +383,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       }
 
       const item = await get('SELECT * FROM items WHERE id = ?', result.lastInsertRowid);
-      res.status(201).json(withPhotos(item));
+      res.status(201).json(forFeedList(item));
 
       auditItemAsync({
         senderTg: String(user.telegram_id || user.id),
@@ -409,15 +408,14 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       if (Number(item.user_id) !== Number(user.id)) return res.status(403).json({ error: 'Можно менять только своё объявление' });
       if (item.status !== 'active') return res.status(400).json({ error: 'Объявление уже закрыто' });
 
-      const { title, description, district, category, oblast, settlement } = req.body;
-      if (!title || !district || !category || !oblast || !settlement) {
+      const { title, description, district, category: rawCategory, oblast, settlement } = req.body;
+      if (!title || !district || !rawCategory || !oblast || !settlement) {
         return res.status(400).json({ error: 'Заполните обязательные поля' });
       }
-      const categoryNorm = normalizeCategory(category);
-      if (!categoryNorm || !ITEM_CATEGORIES.includes(categoryNorm)) {
+      const category = normalizeCategory(rawCategory);
+      if (!category || !ITEM_CATEGORIES.includes(category)) {
         return res.status(400).json({ error: 'Выберите категорию из списка' });
       }
-      category = categoryNorm;
 
       assertCleanListing(title, description);
 
@@ -469,7 +467,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       const updated = await get('SELECT * FROM items WHERE id = ?', item.id);
       const dropped = currentPhotos.filter((p) => !keep.includes(p));
       if (dropped.length) await deleteStoredPhotos(dropped);
-      res.json(withPhotos(updated));
+      res.json(forFeedList(updated));
 
       auditItemAsync({
         senderTg: String(user.telegram_id || user.id),

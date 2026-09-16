@@ -2,12 +2,12 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
 const SRC = 'C:/Users/Admin/AppData/Local/Temp/opencode/charity-src';
 const T99 = JSON.parse(readFileSync('C:/Users/Admin/eco-grodno/server/src/data/target99-points.json', 'utf8'));
-// Ключ геокодера берём только из окружения — в код его больше не кладём.
+// Ключ геокодера берём только из окружения – в код его больше не кладём.
 const GEO_KEY = process.env.YANDEX_GEO_KEY || '';
 const TODAY = process.env.CHARITY_TODAY || '2026-09-10';
 
 if (!GEO_KEY) {
-  console.error('YANDEX_GEO_KEY не задан — геокодирование адресов недоступно.');
+  console.error('YANDEX_GEO_KEY не задан – геокодирование адресов недоступно.');
   process.exit(1);
 }
 

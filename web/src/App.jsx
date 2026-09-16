@@ -59,7 +59,7 @@ export default function App() {
       const inTelegram = Boolean(window.Telegram?.WebApp?.initData);
       // Resumed from the "♻️ EcoHub сейчас" status bar: the Telegram bridge is
       // there but Telegram never re-injects initData into a stale session.
-      // Show the launch screen IMMEDIATELY — no spinner, no waiting, no
+      // Show the launch screen IMMEDIATELY – no spinner, no waiting, no
       // self-close.
       if (webAppExists && !inTelegram) {
         setFromZombie(true);
@@ -95,7 +95,7 @@ export default function App() {
   }, [loading, user]);
 
   // Opened in a real browser (not Telegram): on mobile, re-enter Telegram
-  // automatically. For a status-bar zombie session the launch screen stays —
+  // automatically. For a status-bar zombie session the launch screen stays –
   // the user taps "Запустить EcoHub" themselves.
   useEffect(() => {
     if (loadError !== 'open_telegram') return undefined;

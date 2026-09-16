@@ -1,5 +1,5 @@
 /**
- * AI-модерация: Zhipu (GLM) — основной провайдер, OpenAI — запасной вариант.
+ * AI-модерация: Zhipu (GLM) – основной провайдер, OpenAI – запасной вариант.
  * Node 18+ fetch, circuit breaker, degraded-режим без ключа.
  */
 import { zhipuChat, zhipuKey, zhipuTextModel, zhipuVisionModel, parseJsonEnvelope } from '../zai.js';
@@ -44,10 +44,10 @@ export function aiAvailable() {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const TEXT_MODERATION_PROMPT = [
-  'Ты — модератор приложения безвозмездного обмена вещами. Определи, есть ли в тексте опасное содержимое:',
+  'Ты – модератор приложения безвозмездного обмена вещами. Определи, есть ли в тексте опасное содержимое:',
   'наркотики, оружие, поддельные документы, мошенничество, фишинг, платёжные данные, оскорбления, ненависть, спам, порнография, призывы к насилию.',
   'Ответь ТОЛЬКО валидным JSON: {"flagged": true/false, "categories": ["..."], "confidence": 0.0-1.0}.',
-  'Если ничего опасного нет — {"flagged": false, "categories": [], "confidence": 0}.',
+  'Если ничего опасного нет – {"flagged": false, "categories": [], "confidence": 0}.',
 ].join(' ');
 
 const IMAGE_MODERATION_PROMPT = [
