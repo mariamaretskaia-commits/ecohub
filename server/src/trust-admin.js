@@ -2,7 +2,9 @@
  * Trust & Safety admin router (API для очереди модерации, бана, предупреждений).
  * Авторизация: заголовок X-Trust-Token (равен TRUST_ADMIN_TOKEN env).
  */
-import { get, all } from './db.js';
+import { get, all, run } from './db.js';
+import { thumbDataUrl } from './storage.js';
+import { parseItemPhotos } from './items.js';
 import {
   getAdminQueue,
   getModLog,
@@ -11,6 +13,23 @@ import {
   adminBanUser,
   adminUnbanUser,
 } from './trust/pipeline.js';
+
+const BACKFILL_BATCH = 100;
+
+async function photoBuffer(ref) {
+  const s = String(ref || '');
+  if (s.startsWith('data:')) {
+    const comma = s.indexOf(',');
+    if (comma === -1) return null;
+    return Buffer.from(s.slice(comma + 1), 'base64');
+  }
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    const res = await fetch(s, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return null;
+    return Buffer.from(await res.arrayBuffer());
+  }
+  return null;
+}
 
 function verifyToken(req, res, next) {
   const token = String(process.env.TRUST_ADMIN_TOKEN || '').trim();
@@ -112,5 +131,31 @@ export function registerTrustAdminRoutes(app) {
     } catch (err) {
       sendError(res, err);
     }
+  });
+
+  // Разовый backfill миниатюр для старых объявлений
+  app.post('/api/trust/admin/backfill-thumbs', verifyToken, async (req, res) => {
+    const rows = await all(
+      `SELECT id, photos, photo_url FROM items
+       WHERE photo_thumbs IS NULL
+       ORDER BY id
+       LIMIT ?`,
+      BACKFILL_BATCH,
+    );
+    let done = 0;
+    let failed = 0;
+    for (const row of rows) {
+      const urls = parseItemPhotos(row);
+      const thumbs = [];
+      for (const url of urls) {
+        if (!url) { thumbs.push(null); continue; }
+        const buf = await photoBuffer(url);
+        const thumb = await thumbDataUrl(buf);
+        if (thumb) thumbs.push(thumb); else failed += 1;
+      }
+      await run('UPDATE items SET photo_thumbs = ? WHERE id = ?', JSON.stringify(thumbs), row.id);
+      done += 1;
+    }
+    res.json({ processed: done, failed, remaining_hint: 'запустите повторно, пока не вернётся 0' });
   });
 }
