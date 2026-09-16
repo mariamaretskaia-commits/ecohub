@@ -6,7 +6,7 @@ import ProfileForm from './ProfileForm';
 import ItemCard from './ItemCard';
 import ItemForm from './ItemForm';
 
-export default function ProfileTab({ user, onRefresh, onGoToFeed, initialDraft = null, onDraftHandled }) {
+export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
   const [leaderboard, setLeaderboard] = useState([]);
   const [myItems, setMyItems] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -14,23 +14,13 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed, initialDraft =
   const [loadingFav, setLoadingFav] = useState(true);
   const [editingItem, setEditingItem] = useState(null);
   const [creating, setCreating] = useState(false);
-  const [itemDraft, setItemDraft] = useState(null);
   const [openMine, setOpenMine] = useState(true);
   const [openFav, setOpenFav] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [togglingNudges, setTogglingNudges] = useState(false);
 
-  useEffect(() => {
-    if (!initialDraft) return;
-    setItemDraft(initialDraft);
-    setCreating(true);
-    onDraftHandled?.();
-  }, [initialDraft]);
-
   const closeCreate = () => {
     setCreating(false);
-    setItemDraft(null);
-    onDraftHandled?.();
   };
 
   const nudgesOff = Boolean(user?.nudges_disabled);
@@ -128,11 +118,9 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed, initialDraft =
   if (creating) {
     return (
       <ItemForm
-        initial={itemDraft}
         onClose={closeCreate}
         onSaved={() => {
           setCreating(false);
-          setItemDraft(null);
           setOpenMine(true);
           loadMine();
           onRefresh?.();

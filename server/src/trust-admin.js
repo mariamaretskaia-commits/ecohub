@@ -15,7 +15,7 @@ import {
 function verifyToken(req, res, next) {
   const token = String(process.env.TRUST_ADMIN_TOKEN || '').trim();
   if (!token) return res.status(503).json({ error: 'TRUST_ADMIN_TOKEN не настроен' });
-  const incoming = req.headers['x-trust-token'] || req.query.token || '';
+  const incoming = req.headers['x-trust-token'] || '';
   if (incoming !== token) return res.status(403).json({ error: 'Неверный токен' });
   return next();
 }

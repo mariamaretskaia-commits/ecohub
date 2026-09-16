@@ -114,6 +114,8 @@ function ensureSqliteSchema(db) {
       category TEXT NOT NULL,
       type TEXT NOT NULL CHECK(type IN ('free', 'sharing')),
       status TEXT DEFAULT 'active' CHECK(status IN ('active', 'reserved', 'given')),
+      photo_thumbs TEXT,
+      mod_status TEXT NOT NULL DEFAULT 'ok',
       created_at TEXT DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS recycling_points (
@@ -206,6 +208,8 @@ function ensureSqliteSchema(db) {
   if (!itemCols.includes('photos')) db.exec('ALTER TABLE items ADD COLUMN photos TEXT');
   if (!itemCols.includes('unclaimed_delete_at')) db.exec('ALTER TABLE items ADD COLUMN unclaimed_delete_at TEXT');
   if (!itemCols.includes('unclaimed_nudge_at')) db.exec('ALTER TABLE items ADD COLUMN unclaimed_nudge_at TEXT');
+  if (!itemCols.includes('photo_thumbs')) db.exec('ALTER TABLE items ADD COLUMN photo_thumbs TEXT');
+  if (!itemCols.includes('mod_status')) db.exec("ALTER TABLE items ADD COLUMN mod_status TEXT NOT NULL DEFAULT 'ok'");
 
   db.exec(`
     UPDATE items

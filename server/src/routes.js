@@ -12,12 +12,13 @@ import {
   deleteUserData,
   setNudgesDisabled,
 } from './users.js';
-import { storeItemPhotos, deleteStoredPhotos } from './storage.js';
+import { storeItemPhotos, deleteStoredPhotos, makeItemThumbs } from './storage.js';
 import { ensureWantOpeningMessage } from './chat.js';
-import { moderateItem } from './trust/pipeline.js';
+import { moderateItem, auditItemAsync } from './trust/pipeline.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
-import { classifyWithZhipu, planRecyclingRoute, visionAvailable } from './vision.js';
+import { planRecyclingRoute } from './vision.js';
+import { categorizeItems } from './categorize.js';
 
 function sendError(res, err) {
   const req = res.req;
@@ -188,6 +189,38 @@ function withPhotos(row) {
   return { ...row, photos, photo_url: photos[0] || row.photo_url || null };
 }
 
+function parseThumbs(row) {
+  if (!row) return [];
+  try {
+    const raw = row.photo_thumbs;
+    if (raw) {
+      const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(list)) return list;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+/**
+ * Лёгкое представление объявления для ленты: photo_thumbs предпочитаем полным
+ * фото, чтобы список не весил мегабайты base64. Полные фото — только в детале.
+ */
+function forFeedList(row) {
+  if (!row) return row;
+  const full = withPhotos(row);
+  const thumbs = parseThumbs(row);
+  const photos = full.photos.map((url, i) => (thumbs[i] || url)).filter(Boolean);
+  return {
+    ...full,
+    photos,
+    photo_url: photos[0] || full.photo_url || null,
+    photo_thumbs: thumbs,
+    mod_status: row.mod_status || 'ok',
+  };
+}
+
 export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAuth = authMiddleware, webAppUrl = '') {
   app.get('/api/items', optionalAuth, async (req, res) => {
     try {
@@ -212,11 +245,12 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
           WHERE item_favorites.user_id = ?
             AND users.telegram_id NOT LIKE 'demo_%'
             AND items.status IN ('active', 'given')
+            AND items.mod_status = 'ok'
         `;
         params.push(viewer.id);
         sql += ' ORDER BY item_favorites.created_at DESC';
         let rows = (await all(sql, ...params)).map((row) => ({
-          ...withPhotos(row),
+          ...forFeedList(row),
           is_favorited: true,
         }));
         const needle = String(q || '').trim().toLocaleLowerCase('ru');
@@ -233,7 +267,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         sql += " AND items.status = 'active' AND items.user_id = ?";
         params.push(viewer.id);
       } else {
-        sql += " AND items.status = 'active'";
+        sql += " AND items.status = 'active' AND items.mod_status = 'ok'";
         if (viewer) {
           sql += ' AND items.user_id != ?';
           params.push(viewer.id);
@@ -255,7 +289,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       }
 
       sql += ' ORDER BY items.created_at DESC';
-      let rows = (await all(sql, ...params)).map(withPhotos);
+      let rows = (await all(sql, ...params)).map(forFeedList);
       const needle = String(q || '').trim().toLocaleLowerCase('ru');
       if (needle) {
         rows = rows.filter((item) => (
@@ -326,6 +360,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
 
       const photos = await storeItemPhotos(req.files);
       const photoUrl = photos[0] || null;
+      const thumbs = await makeItemThumbs(req.files);
 
       const result = await run(`
         INSERT INTO items (user_id, title, description, photo_url, photos, oblast, settlement, district, category, type, unclaimed_delete_at)
@@ -342,8 +377,21 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       category,
       'free');
 
+      if (thumbs.length) {
+        await run('UPDATE items SET photo_thumbs = ? WHERE id = ?', JSON.stringify(thumbs), result.lastInsertRowid);
+      }
+
       const item = await get('SELECT * FROM items WHERE id = ?', result.lastInsertRowid);
       res.status(201).json(withPhotos(item));
+
+      auditItemAsync({
+        senderTg: String(user.telegram_id || user.id),
+        itemId: item.id,
+        title,
+        description,
+        photoUrls: photos,
+        bot,
+      }).catch(() => {});
     } catch (err) {
       sendError(res, err);
     }
@@ -390,9 +438,16 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       const photos = [...keep, ...added].slice(0, 5);
       const photoUrl = photos[0] || null;
 
+      const currentThumbs = parseThumbs(item);
+      const currentPhotosList = parsePhotos(item);
+      const thumbForUrl = new Map(currentPhotosList.map((url, i) => [url, currentThumbs[i]]));
+      const addedThumbs = await makeItemThumbs(req.files);
+      const thumbs = [...keep.map((url) => thumbForUrl.get(url) || null), ...addedThumbs].slice(0, 5);
+
       await run(`
         UPDATE items
         SET title = ?, description = ?, photo_url = ?, photos = ?,
+            photo_thumbs = ?, mod_status = 'ok',
             oblast = ?, settlement = ?, district = ?, category = ?, type = 'free'
         WHERE id = ?
       `,
@@ -400,6 +455,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       description || '',
       photoUrl,
       photos.length ? JSON.stringify(photos) : null,
+      thumbs.length ? JSON.stringify(thumbs) : null,
       oblast,
       settlement,
       district,
@@ -410,6 +466,15 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       const dropped = currentPhotos.filter((p) => !keep.includes(p));
       if (dropped.length) await deleteStoredPhotos(dropped);
       res.json(withPhotos(updated));
+
+      auditItemAsync({
+        senderTg: String(user.telegram_id || user.id),
+        itemId: item.id,
+        title,
+        description,
+        photoUrls: photos,
+        bot,
+      }).catch(() => {});
     } catch (err) {
       sendError(res, err);
     }
@@ -629,35 +694,23 @@ export function registerPointRoutes(app) {
 
 const VISION_MAX_BYTES = 5 * 1024 * 1024;
 
+const MAX_CATEGORIZE_NAMES = 60;
+
 export function registerVisionRoutes(app, authMiddleware, upload) {
-  app.post('/api/vision/classify', authMiddleware, upload.single('image'), async (req, res) => {
+  app.post('/api/vision/categorize', authMiddleware, async (req, res) => {
     try {
-      if (!visionAvailable()) return res.status(503).json({ error: 'Распознавание недоступно' });
-
-      let imageRef = null;
-      if (req.file) {
-        if (req.file.size > VISION_MAX_BYTES) {
-          return res.status(400).json({ error: 'Фото слишком большое (макс. 5 МБ)' });
-        }
-        const mime = req.file.mimetype || 'image/jpeg';
-        let body = req.file.buffer;
-        if (!body && req.file.path) body = await (await import('fs')).promises.readFile(req.file.path);
-        if (body) imageRef = `data:${mime};base64,${body.toString('base64')}`;
-      } else {
-        imageRef = String(req.body?.imageUrl || '').trim() || null;
+      const { names } = req.body || {};
+      const list = (Array.isArray(names) ? names : [])
+        .map((n) => String(n ?? '').trim())
+        .filter(Boolean);
+      if (!list.length) {
+        return res.status(400).json({ error: 'Список вещей пуст' });
       }
-
-      if (!imageRef) return res.status(400).json({ error: 'Изображение обязательно' });
-
-      const result = await classifyWithZhipu(imageRef);
-      if (result.fallback) {
-        return res.json({
-          fallback: 'clip',
-          ...(result.reason ? { reason: result.reason } : {}),
-          ...(result.error ? { error: result.error } : {}),
-        });
+      if (list.length > MAX_CATEGORIZE_NAMES) {
+        return res.status(400).json({ error: `Не больше ${MAX_CATEGORIZE_NAMES} вещей за раз` });
       }
-      res.json(result);
+      const { items, provider } = await categorizeItems(list);
+      res.json({ items, provider });
     } catch (err) {
       sendError(res, err);
     }

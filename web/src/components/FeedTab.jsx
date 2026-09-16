@@ -4,7 +4,7 @@ import ItemCard from './ItemCard';
 import Sticker from './Sticker';
 import LocationSelect from './LocationSelect';
 
-export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat, onOpenVision }) {
+export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterLocation, setFilterLocation] = useState({ oblast: '', settlement: '', district: '' });
@@ -58,15 +58,6 @@ export default function FeedTab({ user, onRefresh, onNeedProfile, onOpenChat, on
             </p>
           </div>
         </div>
-        {onOpenVision && (
-          <button
-            type="button"
-            onClick={onOpenVision}
-            className="btn-secondary mt-3 w-full"
-          >
-            Разобрать вещи
-          </button>
-        )}
       </div>
 
       <div className="card p-4 mb-4 space-y-3">

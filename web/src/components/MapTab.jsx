@@ -8,6 +8,7 @@ import LocationSelect from './LocationSelect';
 import PointDetail from './PointDetail';
 import Sticker, { STICKERS } from './Sticker';
 import SuggestPointForm from './SuggestPointForm';
+import RecyclingPlanner from './RecyclingPlanner';
 import { sortByRelevance, relevanceHint } from '../point-rank';
 import { accessInfo } from '../point-access';
 import { MAP_TILE } from '../map-tiles';
@@ -154,6 +155,7 @@ export default function MapTab({ prefilter = [] }) {
   const [loading, setLoading] = useState(true);
   const [focusPoint, setFocusPoint] = useState(null);
   const [suggestOpen, setSuggestOpen] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
   const [zoom, setZoom] = useState(7);
   const zoomRef = useRef(7);
   zoomRef.current = zoom;
@@ -241,6 +243,12 @@ export default function MapTab({ prefilter = [] }) {
     ));
   };
 
+  const showOnMapFromPlanner = (types, point) => {
+    setPlannerOpen(false);
+    setFilterTypes(Array.isArray(types) ? types : []);
+    if (point?.lat && point?.lng) setFocusPoint(point);
+  };
+
   if (selectedPoint) {
     return (
       <PointDetail
@@ -272,6 +280,16 @@ export default function MapTab({ prefilter = [] }) {
           multiDistrict
           compact
         />
+      </div>
+
+      <div className="px-4 pt-1 pb-1">
+        <p className="type-kicker leading-relaxed mb-1.5">
+          Не знаете, куда сесть? Введите список вещей — поможем разобрать по категориям и
+          покажем ближайшие пункты на карте.
+        </p>
+        <button type="button" onClick={() => setPlannerOpen(true)} className="btn-secondary w-full">
+          Разобрать вещи
+        </button>
       </div>
 
       <div className="px-4 pt-1">
@@ -493,6 +511,13 @@ export default function MapTab({ prefilter = [] }) {
       </div>
 
       {suggestOpen && <SuggestPointForm onClose={() => setSuggestOpen(false)} />}
+
+      {plannerOpen && !selectedPoint && (
+        <RecyclingPlanner
+          onClose={() => setPlannerOpen(false)}
+          onShowOnMap={showOnMapFromPlanner}
+        />
+      )}
     </div>
   );
 }

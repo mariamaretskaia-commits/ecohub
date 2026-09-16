@@ -23,16 +23,36 @@ export default function ItemCard({
   const [favorited, setFavorited] = useState(Boolean(item.is_favorited));
   const [slide, setSlide] = useState(0);
   const [lightbox, setLightbox] = useState(null);
+  const [fullItem, setFullItem] = useState(null);
 
   useEffect(() => {
     setFavorited(Boolean(item.is_favorited));
   }, [item.id, item.is_favorited]);
+
+  // Лента отдаёт миниатюры; полные фото подгружаем по клику.
+  const loadDetail = async () => {
+    if (fullItem) return fullItem;
+    try {
+      const full = await api.getItem(item.id);
+      setFullItem(full);
+      return full;
+    } catch {
+      return item;
+    }
+  };
+
+  const openLightbox = (idx) => {
+    setLightbox(idx);
+    loadDetail().catch(() => {});
+  };
 
   const isOwner = ownerMode
     || (currentUser && String(item.telegram_id) === String(currentUser.telegram_id));
   const isGiven = item.status === 'given';
   const inactive = favoriteMode && isGiven;
   const photos = itemPhotos(item);
+  const full = fullItem || item;
+  const lightboxPhotos = fullItem ? itemPhotos(full) : photos;
   const active = Math.min(slide, Math.max(0, photos.length - 1));
   const showFavorite = !isOwner && !ownerMode;
 
@@ -123,7 +143,7 @@ export default function ItemCard({
           <button
             type="button"
             className="block w-full aspect-[3/4] overflow-hidden p-0 border-0 bg-transparent"
-            onClick={() => setLightbox(active)}
+            onClick={() => openLightbox(active)}
             aria-label="Открыть фото"
           >
             <img
@@ -252,7 +272,7 @@ export default function ItemCard({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => onEdit?.(item)}
+                  onClick={() => loadDetail().then(onEdit).catch(() => onEdit?.(item))}
                   disabled={busy || !onEdit}
                   className="btn-secondary flex-1 py-2.5"
                 >
@@ -274,7 +294,7 @@ export default function ItemCard({
 
       {lightbox !== null && (
         <PhotoLightbox
-          photos={photos}
+          photos={lightboxPhotos}
           index={lightbox}
           onClose={() => setLightbox(null)}
           onIndex={setLightbox}

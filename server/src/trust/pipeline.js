@@ -343,6 +343,72 @@ export async function moderateItem({ senderTg, senderName, title, description })
   return { ok: true, verdict, category, score, level, msgId };
 }
 
+const ITEM_AUDIT_MAX_PHOTOS = 4;
+
+async function _notifyAdmins(bot, text) {
+  let deliveredTo = 0;
+  for (const adminId of parseAdminIds()) {
+    deliveredTo += (await _sendNote(bot, adminId, text)) ? 1 : 0;
+  }
+  if (!deliveredTo) {
+    const devRow = await get("SELECT value FROM meta WHERE key = 'dev_telegram_chat_id'").catch(() => null);
+    const devChatId = String(process.env.DEVELOPER_TELEGRAM_ID || devRow?.value || '').trim();
+    if (devChatId) await _sendNote(bot, devChatId, text);
+  }
+}
+
+/**
+ * Фоновая ИИ-проверка объявления после публикации. Не блокирует создание:
+ * при нарушениях ставит items.mod_status='flagged' (скрывает из чужой ленты)
+ * и заводит тикет в очередь модерации. Вызывается fire-and-forget.
+ */
+export async function auditItemAsync({ senderTg, itemId, title, description, photoUrls = [], bot } = {}) {
+  try {
+    const senderIdStr = String(senderTg || '');
+    const text = `${title || ''} ${description || ''}`.trim();
+
+    const flags = [];
+    const textRes = await moderateText(text, 0);
+    if (textRes?.flagged && !textRes.skipped) flags.push(...textRes.categories);
+
+    const photos = (Array.isArray(photoUrls) ? photoUrls : []).filter(Boolean).slice(0, ITEM_AUDIT_MAX_PHOTOS);
+    for (const url of photos) {
+      const img = await moderateImage(url, 0);
+      if (img && !img.safe && !img.skipped) flags.push(img.category || 'image_unsafe');
+    }
+    if (!flags.length) return { ok: true, flagged: false };
+
+    const category = String(flags[0] || 'other');
+    await run("UPDATE items SET mod_status = 'flagged' WHERE id = ?", itemId);
+    const msgId = await insertModMessage({
+      senderTelegramId: senderIdStr,
+      itemId,
+      text,
+      censored: text,
+      photoUrl: photos[0] || null,
+      hasLink: detectLinks(text).length > 0,
+      status: 'flagged',
+      decidedBy: 'ai',
+      flagsJson: JSON.stringify(flags),
+      score: 0,
+      level: 'medium',
+    });
+    await insertReport({ msgId, senderTelegramId: senderIdStr, category, source: 'ai' });
+    await insertLog({
+      event: 'item_ai_flag',
+      targetTelegramId: senderIdStr,
+      actor: 'system',
+      messageId: msgId,
+      detail: { itemId, flags, source: 'ai' },
+    });
+    await _notifyAdmins(bot, `🚨 Объявление #${itemId} помечено ИИ-модератором (${category}).\n${text.slice(0, 160)}`);
+    return { ok: true, flagged: true, category, flags };
+  } catch (err) {
+    console.warn('[trust] auditItemAsync failed:', err.message);
+    return { ok: true, flagged: false, error: err.message };
+  }
+}
+
 // ─── admin actions ──────────────────────────────────────────────────
 export async function adminConfirmReport(reportId, actor) {
   await run("UPDATE mod_reports SET status = 'confirmed', resolved_at = datetime('now'), resolved_by = ? WHERE id = ?", String(actor || ''), reportId);

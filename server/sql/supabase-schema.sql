@@ -46,12 +46,16 @@ CREATE TABLE IF NOT EXISTS items (
   settlement TEXT DEFAULT 'Гродно',
   photos TEXT,
   unclaimed_delete_at TIMESTAMPTZ,
-  unclaimed_nudge_at TIMESTAMPTZ
+  unclaimed_nudge_at TIMESTAMPTZ,
+  photo_thumbs TEXT,
+  mod_status TEXT DEFAULT 'ok'
 );
 
 -- Миграция существующих БД: новые колонки и роль-гейт для старых объявлений.
 ALTER TABLE IF EXISTS items ADD COLUMN IF NOT EXISTS unclaimed_delete_at TIMESTAMPTZ;
 ALTER TABLE IF EXISTS items ADD COLUMN IF NOT EXISTS unclaimed_nudge_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS items ADD COLUMN IF NOT EXISTS photo_thumbs TEXT;
+ALTER TABLE IF EXISTS items ADD COLUMN IF NOT EXISTS mod_status TEXT DEFAULT 'ok';
 
 UPDATE items
 SET unclaimed_delete_at = NOW() + INTERVAL '21 days'

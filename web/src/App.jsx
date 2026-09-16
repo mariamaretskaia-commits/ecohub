@@ -10,7 +10,6 @@ import ChatTab from './components/ChatTab';
 import Sticker from './components/Sticker';
 import BrandMark from './components/BrandMark';
 import LegalGate from './components/LegalGate';
-import VisionFlow from './components/VisionFlow';
 
 export default function App() {
   const launch = (() => {
@@ -35,8 +34,6 @@ export default function App() {
   const [chatWantId, setChatWantId] = useState(null);
   const [chatUnread, setChatUnread] = useState(0);
   const [fromZombie, setFromZombie] = useState(false);
-  const [visionOpen, setVisionOpen] = useState(false);
-  const [draftInitial, setDraftInitial] = useState(null);
 
   useEffect(() => {
     document.documentElement.style.height = '100%';
@@ -179,26 +176,6 @@ export default function App() {
     changeTab('chat');
   }, [changeTab]);
 
-  const openVision = useCallback(() => {
-    setVisionOpen(true);
-  }, []);
-
-  const closeVision = useCallback(() => {
-    setVisionOpen(false);
-  }, []);
-
-  const giveAwayFromVision = useCallback((draft) => {
-    setVisionOpen(false);
-    setDraftInitial({ ...draft });
-    changeTab('profile');
-  }, [changeTab]);
-
-  const openMapFromVision = useCallback((types) => {
-    setVisionOpen(false);
-    setMapPrefilter(Array.isArray(types) ? types : []);
-    changeTab('map');
-  }, [changeTab]);
-
   const goToFeed = useCallback(() => {
     changeTab('feed');
   }, [changeTab]);
@@ -290,7 +267,6 @@ export default function App() {
                 onRefresh={refreshUser}
                 onNeedProfile={() => changeTab('profile')}
                 onOpenChat={openChat}
-                onOpenVision={openVision}
               />
             )}
             {tab === 'map' && <MapTab prefilter={mapPrefilter} />}
@@ -309,8 +285,6 @@ export default function App() {
                 user={user}
                 onRefresh={refreshUser}
                 onGoToFeed={goToFeed}
-                initialDraft={draftInitial}
-                onDraftHandled={() => setDraftInitial(null)}
               />
             )}
             {tab === 'info' && <InfoTab onChangeTab={changeTab} />}
@@ -320,14 +294,6 @@ export default function App() {
 
       {!loadError && !(loading && !user) && !legalPending && (
         <BottomNav active={tab} onChange={changeTab} chatUnread={chatUnread} />
-      )}
-
-      {!loadError && !(loading && !user) && !legalPending && visionOpen && (
-        <VisionFlow
-          onClose={closeVision}
-          onGiveAway={giveAwayFromVision}
-          onOpenMap={openMapFromVision}
-        />
       )}
     </div>
   );

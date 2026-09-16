@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
+import Jimp from 'jimp';
 
 let client;
 
@@ -58,6 +59,39 @@ export async function storeItemPhotos(files) {
   }
 
   return list.map((f) => `/uploads/${f.filename}`);
+}
+
+/**
+ * Генерирует JPEG-миниатюру (≈360px по большей стороне) для data/URL-фото,
+ * чтобы лента была лёгкой. Ошибки не бросает — вернёт null для битого файла.
+ */
+export async function thumbDataUrl(buffer, { maxSide = 360, quality = 0.72 } = {}) {
+  try {
+    if (!buffer || !buffer.length) return null;
+    const img = await Jimp.read(buffer);
+    if (Math.max(img.bitmap.width, img.bitmap.height) > maxSide) {
+      img.resize(maxSide, Jimp.AUTO);
+    }
+    const out = await img.quality(quality).getBufferAsync(Jimp.MIME_JPEG);
+    return `data:image/jpeg;base64,${out.toString('base64')}`;
+  } catch (err) {
+    console.warn('[storage] thumb failed:', err.message);
+    return null;
+  }
+}
+
+/** Создаёт массив миниатюр для multer-files (память/диск), параллельно до 4. */
+export async function makeItemThumbs(files) {
+  const list = Array.isArray(files) ? files : [];
+  const bodies = [];
+  for (const file of list) {
+    bodies.push(file.buffer || (file.path ? await fs.promises.readFile(file.path) : null));
+  }
+  const thumbs = [];
+  for (let i = 0; i < bodies.length; i += 1) {
+    thumbs.push(await thumbDataUrl(bodies[i]));
+  }
+  return thumbs;
 }
 
 /** Удаляет файлы фотографий из Supabase Storage или с локального диска. безобиден для data:/обычных URL. */

@@ -176,7 +176,6 @@ export default function ItemForm({ item = null, initial = null, onClose, onSaved
           district={form.district}
           onChange={(loc) => setForm({ ...form, ...loc })}
           required
-          enableGeo
         />
 
         <label className="block">

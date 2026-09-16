@@ -120,24 +120,33 @@ function authUploadHeaders() {
 }
 
 async function uploadItem(path, method, formData) {
+  await wakeServer();
   const urls = apiUrls(path);
+  const attempts = isTelegramWebApp() ? 8 : 3;
+  const gaps = [0, 2000, 3000, 4000, 5000, 7000, 9000, 12000];
 
   let lastError = new Error('Request failed');
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: authUploadHeaders(),
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        lastError = new Error(err.error || 'Request failed');
-        continue;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (gaps[attempt]) await sleep(gaps[attempt]);
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: authUploadHeaders(),
+          body: formData,
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Request failed' }));
+          lastError = new Error(err.error || 'Request failed');
+          if (res.status >= 500 || res.status === 502 || res.status === 503 || res.status === 504) {
+            continue;
+          }
+          throw lastError;
+        }
+        return res.json();
+      } catch (err) {
+        lastError = err;
       }
-      return res.json();
-    } catch (err) {
-      lastError = err;
     }
   }
   throw lastError;
@@ -211,11 +220,12 @@ export const api = {
     request(`/api/chat/messages/${messageId}`, { method: 'DELETE' }),
   deleteChatThread: (wantId) =>
     request(`/api/chat/threads/${wantId}`, { method: 'DELETE' }),
-  classifyImage: (file) => {
-    const formData = new FormData();
-    formData.append('image', file, file.name || 'photo.jpg');
-    return uploadItem('/api/vision/classify', 'POST', formData);
-  },
+  getItem: (id) => request(`/api/items/${id}`),
+  categorizeItems: (names) =>
+    request('/api/vision/categorize', {
+      method: 'POST',
+      body: JSON.stringify({ names }),
+    }),
   planRecycling: ({ categories, lat, lng } = {}) =>
     request('/api/vision/route', {
       method: 'POST',

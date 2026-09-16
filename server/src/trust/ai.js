@@ -1,7 +1,8 @@
 /**
- * AI-модерация через OpenAI (порт из app/services/ai_moderation.py).
+ * AI-модерация: Zhipu (GLM) — основной провайдер, OpenAI — запасной вариант.
  * Node 18+ fetch, circuit breaker, degraded-режим без ключа.
  */
+import { zhipuChat, zhipuKey, zhipuTextModel, zhipuVisionModel, parseJsonEnvelope } from '../zai.js';
 
 const AI_TEXT_TIMEOUT = 15000;
 const AI_IMAGE_TIMEOUT = 25000;
@@ -36,66 +37,69 @@ class _CircuitBreaker {
 
 const circuit = new _CircuitBreaker();
 
-function aiEndpoints() {
-  return {
-    moderationUrl: process.env.OPENAI_MODERATION_URL || 'https://api.openai.com/v1/moderations',
-    visionUrl: process.env.OPENAI_VISION_URL || 'https://api.openai.com/v1/chat/completions',
-  };
-}
-
 export function aiAvailable() {
-  return Boolean(process.env.OPENAI_API_KEY) && !circuit.degraded;
+  return (Boolean(process.env.OPENAI_API_KEY) || Boolean(zhipuKey())) && !circuit.degraded;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function postJson(url, payload, token, timeout) {
-  let delay = 1000;
-  let last = null;
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), timeout);
-      let resp;
-      try {
-        resp = await fetch(url, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: ctrl.signal,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
-      if (resp.status === 401) return { kind: 'disabled', error: 'invalid_api_key' };
-      if (resp.status === 429) return { kind: 'ratelimit', error: 'rate_limit' };
-      if (!resp.ok) {
-        const err = new Error(`AI HTTP ${resp.status}`);
-        last = err;
-      } else {
-        return { kind: 'ok', data: await resp.json() };
-      }
-    } catch (err) {
-      last = err;
-    }
-    await sleep(delay);
-    delay *= 2;
-  }
-  return { kind: 'error', error: last ? last.message : 'unavailable' };
-}
+const TEXT_MODERATION_PROMPT = [
+  'Ты — модератор приложения безвозмездного обмена вещами. Определи, есть ли в тексте опасное содержимое:',
+  'наркотики, оружие, поддельные документы, мошенничество, фишинг, платёжные данные, оскорбления, ненависть, спам, порнография, призывы к насилию.',
+  'Ответь ТОЛЬКО валидным JSON: {"flagged": true/false, "categories": ["..."], "confidence": 0.0-1.0}.',
+  'Если ничего опасного нет — {"flagged": false, "categories": [], "confidence": 0}.',
+].join(' ');
+
+const IMAGE_MODERATION_PROMPT = [
+  'Это изображение для модерации приложения безвозмездного обмена вещами.',
+  'Ответь ТОЛЬКО валидным JSON формата ',
+  '{"safe": true/false, "category": "drugs"|"weapons"|"documents"|"fraud"|"phishing"|null, "confidence": 0.0-1.0}.',
+  'Запрещены: наркотики, оружие, поддельные документы, платёжные данные и инструкции по оплате.',
+].join(' ');
 
 export async function moderateText(text, retries = 1) {
   const result = { flagged: false, categories: [], confidence: 0, skipped: false, error: null };
   if (!text) return result;
-  if (!process.env.OPENAI_API_KEY || circuit.degraded) {
+  if (!aiAvailable()) {
     result.skipped = true;
     return result;
   }
-  const { moderationUrl } = aiEndpoints();
+
+  if (zhipuKey()) {
+    const system = TEXT_MODERATION_PROMPT;
+    const res = await zhipuChat(
+      [{ role: 'system', content: system }, { role: 'user', content: `Текст:\n---\n${text}\n---` }],
+      { model: zhipuTextModel(), timeoutMs: AI_TEXT_TIMEOUT, retries: Math.max(1, retries) },
+    );
+    if (res.ok) {
+      circuit.reportSuccess();
+      const parsed = parseJsonEnvelope(res.content);
+      if (parsed && typeof parsed === 'object' && 'flagged' in parsed) {
+        result.flagged = Boolean(parsed.flagged);
+        result.categories = Array.isArray(parsed.categories) ? parsed.categories.map(String) : [];
+        result.confidence = Number(parsed.confidence) || 0;
+        return result;
+      }
+      result.error = 'malformed_response';
+      result.skipped = true;
+      return result;
+    }
+    if (res.error === 'auth') {
+      circuit.reportFailure();
+      result.error = 'invalid_api_key';
+    } else {
+      circuit.reportFailure();
+      result.error = result.error || res.error || 'unavailable';
+    }
+    result.skipped = true;
+    return result;
+  }
+
+  // OpenAI fallback
   const payload = { model: 'text-moderation-latest', input: text };
   const attempts = Math.max(1, retries + 1);
   for (let a = 0; a < attempts; a += 1) {
-    const r = await postJson(moderationUrl, payload, process.env.OPENAI_API_KEY, AI_TEXT_TIMEOUT);
+    const r = await postJsonOpenAI(process.env.OPENAI_MODERATION_URL || 'https://api.openai.com/v1/moderations', payload, process.env.OPENAI_API_KEY, AI_TEXT_TIMEOUT);
     if (r.kind === 'disabled') {
       circuit.reportFailure();
       result.error = 'invalid_api_key';
@@ -125,11 +129,42 @@ export async function moderateText(text, retries = 1) {
 export async function moderateImage(imageRef, retries = 1) {
   const result = { safe: true, category: null, confidence: 0, skipped: false, error: null };
   if (!imageRef) return result;
-  if (!process.env.OPENAI_API_KEY || circuit.degraded) {
+  if (!aiAvailable()) {
     result.skipped = true;
     return result;
   }
-  const { visionUrl } = aiEndpoints();
+
+  if (zhipuKey()) {
+    const res = await zhipuChat(
+      [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: imageRef } },
+          { type: 'text', text: IMAGE_MODERATION_PROMPT },
+        ],
+      }],
+      { model: zhipuVisionModel(), timeoutMs: AI_IMAGE_TIMEOUT, retries: Math.max(1, retries) },
+    );
+    if (res.ok) {
+      circuit.reportSuccess();
+      const parsed = parseJsonEnvelope(res.content);
+      if (parsed && typeof parsed === 'object' && 'safe' in parsed) {
+        result.safe = Boolean(parsed.safe);
+        result.category = parsed.category || null;
+        result.confidence = Number(parsed.confidence) || 0;
+        return result;
+      }
+      result.error = 'malformed_response';
+      result.skipped = true;
+      return result;
+    }
+    circuit.reportFailure();
+    result.error = res.error === 'auth' ? 'invalid_api_key' : (res.error || 'unavailable');
+    result.skipped = true;
+    return result;
+  }
+
+  // OpenAI fallback
   const payload = {
     model: 'gpt-4o-mini',
     messages: [
@@ -137,14 +172,7 @@ export async function moderateImage(imageRef, retries = 1) {
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: imageRef } },
-          {
-            type: 'text',
-            text: 'Это изображение для модерации приложения безвозмездного обмена вещами. ' +
-              'Ответь ТОЛЬКО валидным JSON формата ' +
-              '{"safe": true/false, "category": "drugs"|"weapons"|"documents"|"fraud"|"phishing"|null, ' +
-              '"confidence": 0.0-1.0}. Запрещены: наркотики, оружие, поддельные документы, ' +
-              'платёжные данные и инструкции по оплате.',
-          },
+          { type: 'text', text: IMAGE_MODERATION_PROMPT },
         ],
       },
     ],
@@ -153,7 +181,7 @@ export async function moderateImage(imageRef, retries = 1) {
   };
   const attempts = Math.max(1, retries + 1);
   for (let a = 0; a < attempts; a += 1) {
-    const r = await postJson(visionUrl, payload, process.env.OPENAI_API_KEY, AI_IMAGE_TIMEOUT);
+    const r = await postJsonOpenAI(process.env.OPENAI_VISION_URL || 'https://api.openai.com/v1/chat/completions', payload, process.env.OPENAI_API_KEY, AI_IMAGE_TIMEOUT);
     if (r.kind === 'disabled') {
       circuit.reportFailure();
       result.error = 'invalid_api_key';
@@ -180,4 +208,38 @@ export async function moderateImage(imageRef, retries = 1) {
   result.skipped = true;
   result.error = result.error || 'unavailable';
   return result;
+}
+
+async function postJsonOpenAI(url, payload, token, timeout) {
+  let delay = 1000;
+  let last = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeout);
+      let resp;
+      try {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      if (resp.status === 401) return { kind: 'disabled', error: 'invalid_api_key' };
+      if (resp.status === 429) return { kind: 'ratelimit', error: 'rate_limit' };
+      if (!resp.ok) {
+        last = new Error(`AI HTTP ${resp.status}`);
+      } else {
+        return { kind: 'ok', data: await resp.json() };
+      }
+    } catch (err) {
+      last = err;
+    }
+    await sleep(delay);
+    delay *= 2;
+  }
+  return { kind: 'error', error: last ? last.message : 'unavailable' };
 }
