@@ -10,7 +10,7 @@ export function zhipuKey() {
 }
 
 export function zhipuTextModel() {
-  return String(process.env.ZHIPU_TEXT_MODEL || 'glm-4-flash').trim();
+  return String(process.env.ZHIPU_TEXT_MODEL || 'glm-5.3-flash').trim();
 }
 
 export function zhipuVisionModel() {

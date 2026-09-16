@@ -45,6 +45,26 @@ test('categorizeByRules: незнакомое слово → Другое', () =
   assert.equal(categorizeByRules(''), 'Другое');
 });
 
+test('categorizeByRules: украшения и косметика → Красота и здоровье', () => {
+  assert.equal(categorizeByRules('жемчужные бусы'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('бусы'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('серьги'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('браслет'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('кольцо'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('ожерелье'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('цепочка'), 'Красота и здоровье');
+  assert.equal(categorizeByRules('шампунь'), 'Красота и здоровье');
+});
+
+test('categorizeByRules: кассеты и пластинки → Электроника', () => {
+  assert.equal(categorizeByRules('кассеты'), 'Электроника');
+  assert.equal(categorizeByRules('кассета'), 'Электроника');
+  assert.equal(categorizeByRules('видеокассета'), 'Электроника');
+  assert.equal(categorizeByRules('аудиокассеты'), 'Электроника');
+  assert.equal(categorizeByRules('виниловые пластинки'), 'Электроника');
+  assert.equal(categorizeByRules('винил'), 'Электроника');
+});
+
 test('categorizeItems: без ключа работает офлайн-словарь (provider rules)', async () => {
   delete process.env.ZHIPU_API_KEY;
   const res = await categorizeItems(['Куртка', 'Стол'], { categories: RECYCLING_CATEGORIES });
@@ -95,6 +115,39 @@ test('categorizeItems: битый JSON от ИИ → фолбэк на слов�
   });
   assert.equal(res.provider, 'rules');
   assert.equal(res.items[0].category, 'Одежда');
+});
+
+test('categorizeItems: второй проход ИИ вытягивает «Другое» в ближайшую категорию', async () => {
+  process.env.ZHIPU_API_KEY = 'test-key';
+  let calls = 0;
+  const res = await categorizeItems(['Куртка', 'Мистическая штука'], {
+    categories: RECYCLING_CATEGORIES,
+    fetchImpl: async (url, init) => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return { choices: [{ message: { content: '{"Куртка":"Одежда","Мистическая штука":"Другое"}' } }] };
+          },
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { choices: [{ message: { content: '{"Мистическая штука":"Электроника"}' } }] };
+        },
+      };
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(res.provider, 'ai');
+  assert.deepEqual(res.items, [
+    { name: 'Куртка', category: 'Одежда' },
+    { name: 'Мистическая штука', category: 'Электроника' },
+  ]);
 });
 
 test('categorizeItems: лимит 30 вещей', async () => {

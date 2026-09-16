@@ -17,7 +17,7 @@ import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem, auditItemAsync } from './trust/pipeline.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
-import { planRecyclingRoute } from './vision.js';
+import { planRecyclingRoute, hasPointForCategory } from './vision.js';
 import { categorizeItems } from './categorize.js';
 
 function sendError(res, err) {
@@ -712,7 +712,11 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
         return res.status(400).json({ error: `Не больше ${MAX_CATEGORIZE_NAMES} вещей за раз` });
       }
       const { items, provider } = await categorizeItems(list, { categories: RECYCLING_CATEGORIES });
-      res.json({ items, provider });
+      const withPoints = await Promise.all(items.map(async (it) => ({
+        ...it,
+        pointFound: await hasPointForCategory(it.category),
+      })));
+      res.json({ items: withPoints, provider });
     } catch (err) {
       sendError(res, err);
     }

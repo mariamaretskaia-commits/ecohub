@@ -7,7 +7,7 @@ process.env.DATABASE_URL = '';
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb, run, all } from '../src/db.js';
-import { mapCategoryToPointTypes, planRecyclingRoute } from '../src/vision.js';
+import { mapCategoryToPointTypes, planRecyclingRoute, hasPointForCategory } from '../src/vision.js';
 
 await initDb();
 
@@ -35,7 +35,20 @@ test('mapCategoryToPointTypes: категории → типы пунктов', 
   assert.deepEqual(mapCategoryToPointTypes('Бытовая техника'), ['electronics']);
   assert.deepEqual(mapCategoryToPointTypes('Ремонт и стройка'), ['metal', 'other']);
   assert.deepEqual(mapCategoryToPointTypes('Мебель'), ['other']);
+  assert.deepEqual(mapCategoryToPointTypes('Красота и здоровье'), ['other'], 'бусы/косметика не в «Опасные отходы»');
   assert.deepEqual(mapCategoryToPointTypes('Неизвестно'), ['other']);
+});
+
+test('hasPointForCategory: есть пункт под категорию или нет', async () => {
+  await run("DELETE FROM recycling_points WHERE name = 'Пункт Прочее'");
+  assert.equal(await hasPointForCategory('Одежда'), false, 'пока нет одежды – false');
+  assert.equal(await hasPointForCategory('Красота и здоровье'), false, 'других пунктов нет – false');
+  await run(
+    `INSERT INTO recycling_points (name, type, lat, lng, address, accepts) VALUES (?, ?, ?, ?, ?, ?)`,
+    'Шарь-точка', 'clothing', 53.9, 23.9, 'ул. Тест 6', null,
+  );
+  assert.equal(await hasPointForCategory('Одежда'), true, 'появился clothing – true');
+  assert.equal(await hasPointForCategory('Красота и здоровье'), false, 'other нет – false');
 });
 
 async function seedPoints() {

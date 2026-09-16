@@ -151,7 +151,11 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
               <div key={`${idx}-${row.name}`} className="card p-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="type-title truncate">{row.name}</p>
-                  <p className="type-kicker">{row.category}</p>
+                  {row.pointFound === false ? (
+                    <p className="type-kicker text-red-500">Пункт не найден</p>
+                  ) : (
+                    <p className="type-kicker">{row.category}</p>
+                  )}
                 </div>
                 <select
                   value={row.category}
@@ -183,7 +187,7 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
         <div className="mt-4 space-y-3">
           <p className="type-label">Маршрут сдачи</p>
           {route.routes.length === 0 && (
-            <p className="type-empty">Не удалось подобрать пункты под эти категории.</p>
+            <p className="type-empty">Пункт не найден для этих категорий. Можно попробовать поискать отдельно.</p>
           )}
           {route.routes.map((r) => {
             const info = POINT_TYPES[r.point?.type] || POINT_TYPES.other;
@@ -206,7 +210,7 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
           })}
           {route.uncovered?.length > 0 && (
             <p className="type-empty">
-              Не нашли пункты для: {route.uncovered.join(', ')}. Можно попробовать поискать отдельно.
+              Пункт не найден для: {route.uncovered.join(', ')}. Можно попробовать поискать отдельно.
             </p>
           )}
           {cats.length > 0 && (

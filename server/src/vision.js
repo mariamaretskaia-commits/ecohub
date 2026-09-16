@@ -22,12 +22,28 @@ const CATEGORY_TO_POINT_TYPES = {
   'Электроника': ['electronics'],
   'Компьютерная техника': ['electronics'],
   'Бытовая техника': ['electronics'],
-  'Красота и здоровье': ['hazardous', 'other'],
+  // Бусы/косметика/украшения НЕ сдаются в пункты «Опасные отходы» (1AK батарейки/лампы),
+  // поэтому без своего типа пункта они честно уходят в «Пункт не найден».
+  'Красота и здоровье': ['other'],
   'Другое': ['other'],
 };
 
 export function mapCategoryToPointTypes(category) {
   return CATEGORY_TO_POINT_TYPES[category] || ['other'];
+}
+
+/** Есть ли в БД хотя бы один пункт, принимающий хотя бы один тип категории. */
+export async function hasPointForCategory(category) {
+  const types = mapCategoryToPointTypes(category);
+  for (const type of types) {
+    const rows = await all(
+      'SELECT id FROM recycling_points WHERE type = ? OR accepts LIKE ? LIMIT 1',
+      type,
+      `%${type}%`,
+    );
+    if (rows.length) return true;
+  }
+  return false;
 }
 
 function haversineKm(lat1, lon1, lat2, lon2) {
