@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import { tg } from '../telegram';
 import { plannerCoords } from '../planner-coords';
@@ -43,19 +44,20 @@ export default function ItemRecycleSheet({ item, onClose }) {
   }, [item?.id]);
 
   if (selectedPoint) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-[210] bg-white overflow-y-auto">
         <PointDetail
           point={selectedPoint}
           onBack={() => setSelectedPoint(null)}
           backLabel="Назад к списку"
         />
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-[210] bg-white px-4 pt-3 pb-6 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 z-[210] bg-white px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] overflow-y-auto">
       <div className="flex items-center justify-between mb-3">
         <h2 className="type-brand">Куда сдать</h2>
         <button
@@ -79,6 +81,7 @@ export default function ItemRecycleSheet({ item, onClose }) {
       <button type="button" onClick={onClose} className="btn-secondary w-full mt-4">
         Готово
       </button>
-    </div>
+    </div>,
+    document.body,
   );
 }
