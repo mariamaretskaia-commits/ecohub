@@ -254,12 +254,6 @@ export default function MapTab({ prefilter = [] }) {
     ));
   };
 
-  const showOnMapFromPlanner = (types, point) => {
-    setPlannerOpen(false);
-    setFilterTypes(Array.isArray(types) ? types : []);
-    if (point?.lat && point?.lng) setFocusPoint(point);
-  };
-
   if (selectedPoint) {
     return (
       <PointDetail
@@ -527,7 +521,6 @@ export default function MapTab({ prefilter = [] }) {
         <RecyclingPlanner
           loc={loc}
           onClose={() => setPlannerOpen(false)}
-          onShowOnMap={showOnMapFromPlanner}
         />
       )}
     </div>

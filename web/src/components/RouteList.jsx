@@ -11,16 +11,10 @@ const SCOPE_NOTES = {
  * route: { routes: [{ point, categories, items, reason, distanceKm }], uncovered: [] }.
  * Если передан onSelectPoint — каждый пункт кликабельный (подробная карточка).
  */
-export default function RouteList({ route, onShowOnMap, onSelectPoint }) {
+export default function RouteList({ route, onSelectPoint }) {
   if (!route) return null;
   const routes = Array.isArray(route.routes) ? route.routes : [];
   const uncovered = Array.isArray(route.uncovered) ? route.uncovered : [];
-  const types = [...new Set(routes.map((r) => String(r.point?.type || '').trim()).filter(Boolean))];
-
-  const showOnMap = () => {
-    const first = routes[0]?.point;
-    onShowOnMap?.(types, first);
-  };
 
   const scopeNote = route.all ? SCOPE_NOTES[route.scope] : null;
 
@@ -76,11 +70,6 @@ export default function RouteList({ route, onShowOnMap, onSelectPoint }) {
         <p className="type-empty">
           Пункт не найден для: {uncovered.join(', ')}. Можно попробовать поискать отдельно.
         </p>
-      )}
-      {onShowOnMap && types.length > 0 && (
-        <button type="button" onClick={showOnMap} className="btn-secondary w-full">
-          Показать на карте
-        </button>
       )}
     </div>
   );

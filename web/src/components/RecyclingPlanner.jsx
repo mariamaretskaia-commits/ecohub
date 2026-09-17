@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, RECYCLING_CATEGORIES, POINT_TYPES } from '../api';
+import { api, RECYCLING_CATEGORIES } from '../api';
 import { tg } from '../telegram';
 import { plannerCoords } from '../planner-coords';
 import Sticker from './Sticker';
@@ -23,7 +23,7 @@ function parseNames(text) {
  * маршрут по пунктам приёма рядом с выбранной на карте локацией.
  * Не влияет на публикацию в ленте – только планирование.
  */
-export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
+export default function RecyclingPlanner({ loc = null, onClose }) {
   const [text, setText] = useState('');
   const [items, setItems] = useState([]);
   const [route, setRoute] = useState(null);
@@ -78,12 +78,6 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
       setBusy(false);
     }
   };
-
-  const typesOnMap = route?.routes?.length
-    ? [...new Set(route.routes.map((r) => String(r.point?.type || '').trim()).filter(Boolean))]
-    : [];
-  const firstPoint = route?.routes?.[0]?.point;
-  const showOnMap = () => onShowOnMap?.(typesOnMap, firstPoint);
 
   const namesCount = parseNames(text).length;
 
@@ -185,7 +179,6 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
         <div className="mt-4">
           <RouteList
             route={route}
-            onShowOnMap={onShowOnMap ? showOnMap : undefined}
             onSelectPoint={setSelectedPoint}
           />
           <button type="button" onClick={onClose} className="btn-secondary w-full mt-3">
