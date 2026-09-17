@@ -17,8 +17,6 @@ export const NUDGE_BATCH = 20;
 /** Категория объявления → фильтр карты пунктов приёма. */
 const CATEGORY_TO_POINT_TYPE = {
   'Всё для детей и мам': 'clothing',
-  'Женский гардероб': 'clothing',
-  'Мужской гардероб': 'clothing',
   'Одежда': 'clothing',
   'Телефоны и планшеты': 'electronics',
   'Электроника': 'electronics',

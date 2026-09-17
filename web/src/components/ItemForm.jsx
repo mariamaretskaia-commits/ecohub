@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { api, CATEGORIES } from '../api';
 import { tg } from '../telegram';
 import { findAbuse, ABUSE_MESSAGE } from '../moderation';
@@ -27,6 +27,46 @@ export default function ItemForm({ item = null, initial = null, onClose, onSaved
     return base;
   });
   const [loading, setLoading] = useState(false);
+  const [categoryTouched, setCategoryTouched] = useState(editing);
+  const [suggesting, setSuggesting] = useState(false);
+  const [autoCategory, setAutoCategory] = useState(null);
+
+  useEffect(() => {
+    if (editing) return undefined;
+    const title = form.title.trim();
+    if (categoryTouched || title.length < 3) {
+      if (title.length < 3) setAutoCategory(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSuggesting(true);
+      try {
+        const res = await api.categorizeItems([title]);
+        const cat = res?.items?.[0]?.category;
+        if (!cancelled && cat && CATEGORIES.includes(cat)) {
+          setAutoCategory(cat);
+          setForm((f) => (categoryTouched ? f : { ...f, category: cat }));
+        }
+      } catch {
+        /* авто-категория не критична */
+      }
+      if (!cancelled) setSuggesting(false);
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.title, categoryTouched, editing]);
+
+  const handleCategoryChange = (e) => {
+    const value = e.target.value;
+    setCategoryTouched(true);
+    setAutoCategory(null);
+    setForm({ ...form, category: value });
+    const title = form.title.trim();
+    if (title) api.categorizeFix(title, value).catch(() => {});
+  };
 
   const handlePhoto = async (e) => {
     const picked = Array.from(e.target.files || []);
@@ -82,8 +122,20 @@ export default function ItemForm({ item = null, initial = null, onClose, onSaved
 
     setLoading(true);
     try {
+      let category = form.category;
+      if (!editing && !categoryTouched && form.title.trim()) {
+        try {
+          const res = await api.categorizeItems([form.title.trim()]);
+          const cat = res?.items?.[0]?.category;
+          if (cat && CATEGORIES.includes(cat)) category = cat;
+        } catch {
+          /* оставляем выбранную категорию */
+        }
+      }
+
+      const payload = { ...form, category };
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      Object.entries(payload).forEach(([k, v]) => fd.append(k, v));
       fd.append('type', 'free');
       const keep = photos.filter((p) => p.url && !p.file).map((p) => p.url);
       fd.append('keep_photos', JSON.stringify(keep));
@@ -182,11 +234,20 @@ export default function ItemForm({ item = null, initial = null, onClose, onSaved
           <span className="type-label">Категория</span>
           <select
             value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            onChange={handleCategoryChange}
             className="field"
           >
             {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
+          {!editing && (
+            <span className="type-meta mt-1 block">
+              {suggesting
+                ? 'Определяем категорию…'
+                : autoCategory
+                  ? `Определили автоматически: «${autoCategory}» — можно изменить`
+                  : 'Определим категорию по названию автоматически'}
+            </span>
+          )}
         </label>
 
         <button type="submit" disabled={loading} className="btn-mint w-full">

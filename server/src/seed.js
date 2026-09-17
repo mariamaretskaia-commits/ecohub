@@ -4,6 +4,20 @@ import { derivePointKinds } from './point-kinds.js';
 import { importTarget99 } from './import-target99.js';
 import { importCharity } from './import-charity.js';
 import { grodnoArea } from './grodno-areas.js';
+import { cleanPointField } from './points-text.js';
+
+const POINT_TEXT_FIELDS = [
+  'name', 'organization', 'address', 'phone', 'website', 'hours', 'prices',
+  'logistics', 'description', 'transit', 'short_address', 'accepts',
+];
+
+function cleanPoint(p) {
+  const out = { ...p };
+  for (const field of POINT_TEXT_FIELDS) {
+    out[field] = cleanPointField(field, p[field]);
+  }
+  return out;
+}
 
 const COLS = [
   'name', 'organization', 'type', 'district', 'lat', 'lng', 'address', 'phone', 'website',
@@ -34,7 +48,8 @@ async function seedPoints() {
   );
 
   let inserted = 0;
-  for (const p of POINTS) {
+  for (const raw of POINTS) {
+    const p = cleanPoint(raw);
     const fallbackKey = String(p.organization || '').toLowerCase() + '|' + String(p.address || '').toLowerCase();
     const key = String(p.source_key || fallbackKey).toLowerCase();
     const acceptKinds = derivePointKinds(p).join(',');

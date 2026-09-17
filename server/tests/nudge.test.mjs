@@ -106,7 +106,6 @@ function makeBot() {
 
 test('mapCategoryToPointType: одежда/детское/электроника → типы карты, Мебель → нет', () => {
   assert.equal(mapCategoryToPointType('Одежда'), 'clothing');
-  assert.equal(mapCategoryToPointType('Женский гардероб'), 'clothing');
   assert.equal(mapCategoryToPointType('Всё для детей и мам'), 'clothing');
   assert.equal(mapCategoryToPointType('Бытовая техника'), 'electronics');
   assert.equal(mapCategoryToPointType('Электроника'), 'electronics');

@@ -151,6 +151,8 @@ export default function ItemCard({
             <img
               src={photoSrc(photos[active])}
               alt={item.title}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-cover"
             />
           </button>

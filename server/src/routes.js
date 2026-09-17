@@ -21,6 +21,22 @@ import { planRecyclingRoute, hasPointForItem } from './vision.js';
 import { categorizeItems, categorizeByRules } from './categorize.js';
 import { cacheStore } from './catcache.js';
 import { logCategorization, logFix } from './catlog.js';
+import { cleanPointField } from './points-text.js';
+
+const POINT_OUTPUT_TEXT_FIELDS = [
+  'name', 'organization', 'address', 'phone', 'website', 'hours', 'prices',
+  'logistics', 'description', 'transit', 'short_address', 'accepts',
+];
+
+/** Защита на выходе: API пунктов не отдаёт HTML/сущности и скрывает спам-описания. */
+function cleanPointRow(row) {
+  if (!row) return row;
+  const out = { ...row };
+  for (const field of POINT_OUTPUT_TEXT_FIELDS) {
+    if (out[field] != null) out[field] = cleanPointField(field, out[field]);
+  }
+  return out;
+}
 
 function sendError(res, err) {
   const req = res.req;
@@ -188,7 +204,9 @@ function parsePhotos(item) {
 function withPhotos(row) {
   if (!row) return row;
   const photos = parsePhotos(row);
-  return { ...row, photos, photo_url: photos[0] || row.photo_url || null };
+  const out = { ...row, photos, photo_url: photos[0] || row.photo_url || null };
+  delete out.photo_thumbs;
+  return out;
 }
 
 function parseThumbs(row) {
@@ -218,7 +236,6 @@ function forFeedList(row) {
     ...full,
     photos,
     photo_url: photos[0] || full.photo_url || null,
-    photo_thumbs: thumbs,
     mod_status: row.mod_status || 'ok',
   };
 }
@@ -679,7 +696,8 @@ export function registerPointRoutes(app) {
         params.push(...districtList);
       }
       sql += ' ORDER BY district, organization, name';
-      res.json(await all(sql, ...params));
+      const rows = await all(sql, ...params);
+      res.json(rows.map(cleanPointRow));
     } catch (err) {
       sendError(res, err);
     }
@@ -689,7 +707,7 @@ export function registerPointRoutes(app) {
     try {
       const point = await get('SELECT * FROM recycling_points WHERE id = ?', req.params.id);
       if (!point) return res.status(404).json({ error: 'Not found' });
-      res.json(point);
+      res.json(cleanPointRow(point));
     } catch (err) {
       sendError(res, err);
     }

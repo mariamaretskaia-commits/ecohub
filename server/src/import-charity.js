@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { all, run } from './db.js';
 import { derivePointKinds } from './point-kinds.js';
+import { cleanPointField } from './points-text.js';
 
 /**
  * Благотворительные организации принимают вещи и предметы первой необходимости
@@ -42,11 +43,19 @@ function dedupeKey(settlement, address) {
   return `${normText(settlement)}|${addressKey(address)}`;
 }
 
+const TEXT_FIELDS = [
+  'name', 'organization', 'address', 'phone', 'website', 'hours', 'prices',
+  'logistics', 'description', 'transit', 'short_address', 'accepts',
+];
+
 function toParams(p) {
+  const c = (field) => (TEXT_FIELDS.includes(field) ? cleanPointField(field, p[field]) : p[field]);
+  const accepts = c('accepts');
+  const kinds = charityKinds({ ...p, accepts }).join(',');
   return [
-    p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
-    p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
-    p.accepts, charityKinds(p).join(','), p.last_synced, p.oblast, p.settlement, p.access_mode, p.source,
+    c('name'), c('organization'), p.type, p.district, p.lat, p.lng, c('address'), c('phone'), c('website'),
+    c('hours'), c('prices'), c('logistics'), c('description'), c('transit'), p.source_key, c('short_address'),
+    accepts, kinds, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source,
   ];
 }
 

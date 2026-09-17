@@ -31,7 +31,6 @@ afterEach(async () => {
 
 test('mapCategoryToKinds: категории → виды приёма', () => {
   assert.deepEqual(mapCategoryToKinds('Одежда'), ['textile']);
-  assert.deepEqual(mapCategoryToKinds('Женский гардероб'), ['textile']);
   assert.ok(mapCategoryToKinds('Бытовая техника').includes('electronics'));
   assert.ok(mapCategoryToKinds('Ремонт и стройка').includes('metal'));
   assert.deepEqual(mapCategoryToKinds('Мебель'), ['furniture']);
@@ -117,9 +116,9 @@ test('planRecyclingRoute: одежда+электроника покрывают
   assert.ok(maxCat === 2, 'объединение в один маршрут предпочтительно');
 });
 
-test('planRecyclingRoute: 5 категорий → ≤2 маршрута и всё покрыто принимаемыми видами', async () => {
+test('planRecyclingRoute: 4 категории → ≤2 маршрута и всё покрыто принимаемыми видами', async () => {
   await seedPoints();
-  const cats = ['Одежда', 'Женский гардероб', 'Бытовая техника', 'Ремонт и стройка', 'Всё для дома'];
+  const cats = ['Одежда', 'Бытовая техника', 'Ремонт и стройка', 'Всё для дома'];
   const plan = await planRecyclingRoute(cats);
   assert.ok(plan.routes.length <= 2, `маршрутов ≤2, получено ${plan.routes.length}`);
   const covered = plan.routes.flatMap((r) => r.categories);

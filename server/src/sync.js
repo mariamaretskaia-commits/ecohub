@@ -1,5 +1,6 @@
 import { get, all, run } from './db.js';
 import { locateByAddress } from './grodno-geo.js';
+import { decodeEntities, stripTags } from './points-text.js';
 
 const UA = 'EcoHub/1.0 (+https://t.me/EcoHubBY_bot)';
 
@@ -10,12 +11,11 @@ async function loadHtml(url) {
 }
 
 function clean(html) {
-  return html
+  const pre = String(html)
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<br\s*\/?>/gi, ' | ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
+    .replace(/<br\s*\/?>/gi, ' | ');
+  return stripTags(decodeEntities(pre))
     .replace(/&mdash;|&ndash;|–/g, '–')
     .replace(/\s+/g, ' ')
     .trim();

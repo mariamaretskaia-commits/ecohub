@@ -6,6 +6,7 @@ import { get, all, run } from './db.js';
 import { thumbDataUrl } from './storage.js';
 import { parseItemPhotos } from './items.js';
 import { LEGACY_CATEGORY_MAP, ITEM_CATEGORIES } from './moderation.js';
+import { cleanPointField } from './points-text.js';
 import {
   getAdminQueue,
   getModLog,
@@ -16,6 +17,11 @@ import {
 } from './trust/pipeline.js';
 
 const BACKFILL_BATCH = 100;
+
+const POINT_TEXT_FIELDS = [
+  'name', 'organization', 'address', 'phone', 'website', 'hours', 'prices',
+  'logistics', 'description', 'transit', 'short_address', 'accepts',
+];
 
 async function photoBuffer(ref) {
   const s = String(ref || '');
@@ -137,16 +143,19 @@ export function registerTrustAdminRoutes(app) {
   // Разовый backfill миниатюр для старых объявлений (?rewrite=1 перезаписывает готовые)
   app.post('/api/trust/admin/backfill-thumbs', verifyToken, async (req, res) => {
     const rewrite = req.body?.rewrite === true || req.body?.rewrite === 1;
+    const afterId = Math.max(0, Number(req.body?.after_id) || 0);
     const where = rewrite ? 'photos IS NOT NULL' : 'photo_thumbs IS NULL';
     const rows = await all(
       `SELECT id, photos, photo_url FROM items
-       WHERE ${where}
+       WHERE ${where} AND id > ?
        ORDER BY id
        LIMIT ?`,
+      afterId,
       BACKFILL_BATCH,
     );
     let done = 0;
     let failed = 0;
+    let lastId = afterId;
     for (const row of rows) {
       const urls = parseItemPhotos(row);
       const thumbs = [];
@@ -157,22 +166,64 @@ export function registerTrustAdminRoutes(app) {
         if (thumb) thumbs.push(thumb); else failed += 1;
       }
       await run('UPDATE items SET photo_thumbs = ? WHERE id = ?', JSON.stringify(thumbs), row.id);
+      lastId = Number(row.id);
       done += 1;
     }
-    res.json({ processed: done, failed, remaining_hint: 'запустите повторно, пока не вернётся 0' });
+    res.json({
+      processed: done,
+      failed,
+      next_after_id: lastId,
+      remaining: Math.max(0, BACKFILL_BATCH - done),
+    });
+  });
+
+  // Одноразовая чистка описаний/текстов пунктов от скрап-мусора (HTML, &nbsp;, ...)
+  app.post('/api/trust/admin/backfill-points-text', verifyToken, async (req, res) => {
+    const afterId = Math.max(0, Number(req.body?.after_id) || 0);
+    const rows = await all(
+      `SELECT id, ${POINT_TEXT_FIELDS.join(', ')} FROM recycling_points
+       WHERE id > ?
+       ORDER BY id
+       LIMIT ?`,
+      afterId,
+      BACKFILL_BATCH,
+    );
+    let updated = 0;
+    let lastId = afterId;
+    for (const row of rows) {
+      const sets = [];
+      const values = [];
+      for (const field of POINT_TEXT_FIELDS) {
+        const cleaned = cleanPointField(field, row[field]);
+        if (cleaned !== (row[field] ?? '')) {
+          sets.push(`${field} = ?`);
+          values.push(cleaned);
+        }
+      }
+      if (sets.length) {
+        values.push(row.id);
+        await run(`UPDATE recycling_points SET ${sets.join(', ')} WHERE id = ?`, ...values);
+        updated += 1;
+      }
+      lastId = Number(row.id);
+    }
+    res.json({ processed: rows.length, updated, next_after_id: lastId, done: rows.length < BACKFILL_BATCH });
   });
 
   // Одноразовая миграция старых категорий → новая таксономия
   app.post('/api/trust/admin/backfill-categories', verifyToken, async (req, res) => {
+    const afterId = Math.max(0, Number(req.body?.after_id) || 0);
     const rows = await all(
       `SELECT id, category FROM items
-       WHERE category IS NOT NULL AND category != ''
+       WHERE category IS NOT NULL AND category != '' AND id > ?
        ORDER BY id
        LIMIT ?`,
+      afterId,
       BACKFILL_BATCH,
     );
     let updated = 0;
     let skipped = 0;
+    let lastId = afterId;
     for (const row of rows) {
       const mapped = LEGACY_CATEGORY_MAP[row.category];
       if (mapped && ITEM_CATEGORIES.includes(mapped) && mapped !== row.category) {
@@ -184,7 +235,74 @@ export function registerTrustAdminRoutes(app) {
       } else {
         skipped += 1;
       }
+      lastId = Number(row.id);
     }
-    res.json({ processed: rows.length, updated, skipped, remaining_hint: 'запустите повторно, пока не вернётся 0' });
+
+    // Кэш/стемы/лог категоризации живут вне items — мигрируем один раз на первом батче.
+    let cache = null;
+    if (afterId === 0) cache = await migrateCategoryCaches();
+
+    res.json({
+      processed: rows.length,
+      updated,
+      skipped,
+      next_after_id: lastId,
+      cache,
+      done: rows.length < BACKFILL_BATCH,
+    });
   });
+}
+
+const GENDER_CATEGORIES = Object.keys(LEGACY_CATEGORY_MAP)
+  .filter((k) => LEGACY_CATEGORY_MAP[k] === 'Одежда' && k !== 'Одежда');
+
+async function migrateCategoryCaches() {
+  const placeholders = GENDER_CATEGORIES.map(() => '?').join(', ');
+  const result = { cache: 0, stems: 0, log: 0 };
+  const safeRun = (sql, ...args) => run(sql, ...args).catch(() => null);
+  const safeAll = (sql, ...args) => all(sql, ...args).catch(() => []);
+
+  const cacheRows = await safeAll(
+    `SELECT id FROM categorization_cache WHERE category IN (${placeholders})`,
+    ...GENDER_CATEGORIES,
+  );
+  if (cacheRows.length) {
+    await safeRun(
+      `UPDATE categorization_cache SET category = 'Одежда' WHERE category IN (${placeholders})`,
+      ...GENDER_CATEGORIES,
+    );
+    result.cache = cacheRows.length;
+  }
+
+  const stemRows = await safeAll(
+    `SELECT stem FROM categorization_stems WHERE category IN (${placeholders})`,
+    ...GENDER_CATEGORIES,
+  );
+  if (stemRows.length) {
+    await safeRun(
+      `DELETE FROM categorization_stems
+       WHERE category IN (${placeholders})
+         AND stem IN (SELECT stem FROM categorization_stems WHERE category = 'Одежда')`,
+      ...GENDER_CATEGORIES,
+    );
+    await safeRun(
+      `UPDATE categorization_stems SET category = 'Одежда' WHERE category IN (${placeholders})`,
+      ...GENDER_CATEGORIES,
+    );
+    result.stems = stemRows.length;
+  }
+
+  const logRows = await safeAll(
+    `SELECT id FROM categorization_log WHERE category IN (${placeholders})`,
+    ...GENDER_CATEGORIES,
+  );
+  if (logRows.length) {
+    await safeRun(
+      `UPDATE categorization_log SET category = 'Одежда' WHERE category IN (${placeholders})`,
+      ...GENDER_CATEGORIES,
+    );
+    result.log = logRows.length;
+  }
+
+  return result;
 }

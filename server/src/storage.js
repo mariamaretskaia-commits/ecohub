@@ -63,11 +63,12 @@ export async function storeItemPhotos(files) {
 
 /**
  * Генерирует JPEG-миниатюру для ленты: центр. кроп под кадр карточки (3:4) и
- * ресайз до ≈1080×1440, q0.85. Кроп сразу под карточку избавляет от
+ * ресайз до ≈1080×1440. ВАЖНО: `quality` у Jimp в шкале 0–100 (не 0–1),
+ * поэтому дефолт 84, а не 0.85. Кроп сразу под карточку избавляет от
  * «зума» широких фото на клиенте, поэтому список выглядит чётко.
  * Ошибки не бросает – вернёт null для битого файла.
  */
-export async function thumbDataUrl(buffer, { width = 1080, aspect = 3 / 4, quality = 0.85 } = {}) {
+export async function thumbDataUrl(buffer, { width = 1080, aspect = 3 / 4, quality = 84 } = {}) {
   try {
     if (!buffer || !buffer.length) return null;
     const img = await Jimp.read(buffer);
@@ -93,7 +94,8 @@ export async function thumbDataUrl(buffer, { width = 1080, aspect = 3 / 4, quali
     const targetH = Math.round(targetW / aspect);
     img.resize(targetW, targetH, Jimp.RESIZE_BICUBIC);
 
-    const out = await img.quality(quality).getBufferAsync(Jimp.MIME_JPEG);
+    const q = Math.max(1, Math.min(100, Math.round(quality)));
+    const out = await img.quality(q).getBufferAsync(Jimp.MIME_JPEG);
     return `data:image/jpeg;base64,${out.toString('base64')}`;
   } catch (err) {
     console.warn('[storage] thumb failed:', err.message);
