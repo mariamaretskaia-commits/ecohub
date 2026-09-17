@@ -162,6 +162,46 @@ test('planRecyclingRoute: отсутствующий вид уходит в unco
   assert.deepEqual(plan.uncovered, ['Мебель']);
 });
 
+test('planRecyclingRoute all: все принимающие пункты города, ближайший первым', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute(
+    [{ name: 'куртка', category: 'Одежда' }],
+    53.68, 23.83,
+    { all: true, settlement: 'Гродно', oblast: 'Гродненская область' },
+  );
+  assert.equal(plan.all, true);
+  assert.equal(plan.scope, 'settlement');
+  const names = plan.routes.map((r) => r.point.name);
+  assert.ok(names.includes('Пункт Одежда'));
+  assert.ok(names.includes('Универсальный'));
+  assert.ok(names.includes('Приют помощи'));
+  assert.ok(!names.includes('Пункт Техника'), 'техника не принимает одежду');
+  assert.equal(names[0], 'Пункт Одежда', 'ближайший пункт первым');
+});
+
+test('planRecyclingRoute all: нет пунктов в городе → область', async () => {
+  await seedPoints();
+  await run("UPDATE recycling_points SET settlement = 'Лида'");
+  const plan = await planRecyclingRoute(
+    [{ name: 'куртка', category: 'Одежда' }],
+    53.68, 23.83,
+    { all: true, settlement: 'Гродно', oblast: 'Гродненская область' },
+  );
+  assert.equal(plan.scope, 'oblast');
+  assert.ok(plan.routes.length >= 3, 'показаны пункты области');
+});
+
+test('planRecyclingRoute all: отсутствующий вид уходит в uncovered', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute(
+    [{ name: 'диван', category: 'Мебель' }],
+    null, null,
+    { all: true, settlement: 'Гродно' },
+  );
+  assert.deepEqual(plan.routes, []);
+  assert.deepEqual(plan.uncovered, ['Мебель']);
+});
+
 test('planRecyclingRoute: пустой список → пустой план', async () => {
   const plan = await planRecyclingRoute([]);
   assert.deepEqual(plan, { routes: [], uncovered: [] });

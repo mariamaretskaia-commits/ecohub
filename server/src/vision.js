@@ -53,19 +53,107 @@ function normalizeItems(items) {
   return out;
 }
 
+/** Человекочитаемая подпись покрытия (вещи или категории). */
+function coveredLabel(wanted, covered) {
+  const categories = [...new Set(covered.map((i) => wanted[i].category))];
+  const names = [...new Set(covered.map((i) => wanted[i].name).filter(Boolean))];
+  const label = names.length
+    ? names.slice(0, 3).join(', ') + (names.length > 3 ? ` и ещё ${names.length - 3}` : '')
+    : categories.join(', ');
+  return { categories, names, label };
+}
+
 /**
- * Планирует до 2 маршрутов сдачи вещей.
- * items: [{ name, category }] или строки категорий (совместимо).
- * Возвращает { routes, uncovered }: каждый маршрут покрывает свои вещи,
- * пункты упорядочены по близости при заданных координатах.
+ * Режим списка: все пункты, принимающие хотя бы один вид вещей.
+ * Область поиска: город (settlement) → область (oblast) → вся страна,
+ * чтобы ехать далеко только если рядом действительно ничего нет.
+ * Пункты сортируются по удалённости (если заданы координаты), затем по числу
+ * покрытых вещей. Возвращает { routes, uncovered, scope, total, truncated }.
  */
-export async function planRecyclingRoute(items, userLat = null, userLng = null) {
+function planAllPoints(points, wanted, acceptedByPoint, userLat, userLng, opts) {
+  const limit = Math.max(1, Number(opts.limit) || 60);
+
+  const matches = [];
+  for (const point of points) {
+    const accepted = acceptedByPoint.get(point.id) || [];
+    if (!accepted.length) continue;
+    const covered = wanted.map((_, i) => i).filter((i) =>
+      wanted[i].kinds.some((k) => accepted.includes(k)),
+    );
+    if (covered.length) matches.push({ point, covered });
+  }
+
+  const scopeMatch = (field, value) => (
+    value ? matches.filter((m) => String(m.point[field] || '') === String(value)) : []
+  );
+
+  let scoped = matches;
+  let scope = 'country';
+  if (opts.settlement) {
+    const bySettlement = scopeMatch('settlement', opts.settlement);
+    const byOblast = scopeMatch('oblast', opts.oblast);
+    if (bySettlement.length) { scoped = bySettlement; scope = 'settlement'; }
+    else if (byOblast.length) { scoped = byOblast; scope = 'oblast'; }
+  } else if (opts.oblast) {
+    const byOblast = scopeMatch('oblast', opts.oblast);
+    if (byOblast.length) { scoped = byOblast; scope = 'oblast'; }
+  }
+
+  const distOf = (point) => {
+    if (
+      userLat == null || userLng == null ||
+      point.lat == null || point.lng == null
+    ) return null;
+    return haversineKm(Number(userLat), Number(userLng), Number(point.lat), Number(point.lng));
+  };
+
+  const scored = scoped.map((m) => ({ ...m, dist: distOf(m.point) }));
+  scored.sort((a, b) => {
+    if (a.dist == null && b.dist == null) return b.covered.length - a.covered.length;
+    if (a.dist == null) return 1;
+    if (b.dist == null) return -1;
+    if (Math.abs(a.dist - b.dist) > 0.05) return a.dist - b.dist;
+    return b.covered.length - a.covered.length;
+  });
+
+  const truncated = scored.length > limit;
+  const routes = scored.slice(0, limit).map((m) => {
+    const { categories, names, label } = coveredLabel(wanted, m.covered);
+    return {
+      point: m.point,
+      categories,
+      items: names,
+      reason: `Принимает: ${label}`,
+      distanceKm: m.dist,
+    };
+  });
+
+  const coveredKinds = new Set();
+  scoped.forEach((m) => (acceptedByPoint.get(m.point.id) || []).forEach((k) => coveredKinds.add(k)));
+  const uncovered = [...new Set(
+    wanted.filter((w) => !w.kinds.some((k) => coveredKinds.has(k))).map((w) => w.category),
+  )];
+
+  return { routes, uncovered, all: true, scope, total: scored.length, truncated };
+}
+
+/**
+ * Планирует маршрут сдачи вещей.
+ * items: [{ name, category }] или строки категорий (совместимо).
+ * По умолчанию — до 2 маршрутов (минимум пунктов). С opts.all — все пункты,
+ * принимающие вещи (список «Куда сдать»).
+ */
+export async function planRecyclingRoute(items, userLat = null, userLng = null, opts = {}) {
   const list = normalizeItems(items);
   if (!list.length) return { routes: [], uncovered: [] };
 
   const points = await all('SELECT * FROM recycling_points');
   const wanted = list.map((it) => ({ ...it, kinds: kindsForItem(it.name, it.category) }));
   const acceptedByPoint = new Map(points.map((p) => [p.id, pointKindsFor(p)]));
+
+  if (opts.all) {
+    return planAllPoints(points, wanted, acceptedByPoint, userLat, userLng, opts);
+  }
 
   const distKm = (point) => {
     if (
@@ -98,11 +186,7 @@ export async function planRecyclingRoute(items, userLat = null, userLng = null) 
     }
     if (!best) break;
 
-    const categories = [...new Set(best.covered.map((i) => wanted[i].category))];
-    const names = [...new Set(best.covered.map((i) => wanted[i].name).filter(Boolean))];
-    const label = names.length
-      ? names.slice(0, 3).join(', ') + (names.length > 3 ? ` и ещё ${names.length - 3}` : '')
-      : categories.join(', ');
+    const { categories, names, label } = coveredLabel(wanted, best.covered);
     routes.push({
       point: best.point,
       categories,

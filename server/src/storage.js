@@ -62,16 +62,37 @@ export async function storeItemPhotos(files) {
 }
 
 /**
- * Генерирует JPEG-миниатюру (≈1080px по большей стороне, q0.82) для data/URL-фото,
- * чтобы лента была чёткой (≥720p). Ошибки не бросает – вернёт null для битого файла.
+ * Генерирует JPEG-миниатюру для ленты: центр. кроп под кадр карточки (3:4) и
+ * ресайз до ≈1080×1440, q0.85. Кроп сразу под карточку избавляет от
+ * «зума» широких фото на клиенте, поэтому список выглядит чётко.
+ * Ошибки не бросает – вернёт null для битого файла.
  */
-export async function thumbDataUrl(buffer, { maxSide = 1080, quality = 0.82 } = {}) {
+export async function thumbDataUrl(buffer, { width = 1080, aspect = 3 / 4, quality = 0.85 } = {}) {
   try {
     if (!buffer || !buffer.length) return null;
     const img = await Jimp.read(buffer);
-    if (Math.max(img.bitmap.width, img.bitmap.height) > maxSide) {
-      img.resize(maxSide, Jimp.AUTO, Jimp.RESIZE_BICUBIC);
+    const srcW = img.bitmap.width;
+    const srcH = img.bitmap.height;
+    if (!srcW || !srcH) return null;
+
+    const srcAspect = srcW / srcH;
+    let cropW;
+    let cropH;
+    if (srcAspect > aspect) {
+      cropH = srcH;
+      cropW = Math.round(cropH * aspect);
+    } else {
+      cropW = srcW;
+      cropH = Math.round(cropW / aspect);
     }
+    const x = Math.max(0, Math.round((srcW - cropW) / 2));
+    const y = Math.max(0, Math.round((srcH - cropH) / 2));
+    img.crop(x, y, cropW, cropH);
+
+    const targetW = Math.min(Math.round(width), cropW);
+    const targetH = Math.round(targetW / aspect);
+    img.resize(targetW, targetH, Jimp.RESIZE_BICUBIC);
+
     const out = await img.quality(quality).getBufferAsync(Jimp.MIME_JPEG);
     return `data:image/jpeg;base64,${out.toString('base64')}`;
   } catch (err) {

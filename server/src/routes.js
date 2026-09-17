@@ -752,14 +752,18 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
 
   app.post('/api/vision/route', authMiddleware, async (req, res) => {
     try {
-      const { items, categories, lat, lng } = req.body || {};
+      const { items, categories, lat, lng, all: allPoints, settlement, oblast } = req.body || {};
       const list = Array.isArray(items) && items.length
         ? items
         : (Array.isArray(categories) ? categories : []);
       if (!list.length) {
         return res.status(400).json({ error: 'Вещи или категории обязательны' });
       }
-      res.json(await planRecyclingRoute(list, lat, lng));
+      res.json(await planRecyclingRoute(list, lat, lng, {
+        all: allPoints === true,
+        settlement: settlement ? String(settlement).trim() : null,
+        oblast: oblast ? String(oblast).trim() : null,
+      }));
     } catch (err) {
       sendError(res, err);
     }

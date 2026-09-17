@@ -4,6 +4,7 @@ import { tg } from '../telegram';
 import { plannerCoords } from '../planner-coords';
 import Sticker from './Sticker';
 import RouteList from './RouteList';
+import PointDetail from './PointDetail';
 
 const MAX_ITEMS = 30;
 
@@ -27,6 +28,7 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
   const [route, setRoute] = useState(null);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('list');
+  const [selectedPoint, setSelectedPoint] = useState(null);
 
   const handleCategorize = async () => {
     const names = parseNames(text);
@@ -83,6 +85,18 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
   const showOnMap = () => onShowOnMap?.(typesOnMap, firstPoint);
 
   const namesCount = parseNames(text).length;
+
+  if (selectedPoint) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-white overflow-y-auto">
+        <PointDetail
+          point={selectedPoint}
+          onBack={() => setSelectedPoint(null)}
+          backLabel="Назад к маршруту"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] bg-white px-4 pt-3 pb-6 overflow-y-auto">
@@ -169,7 +183,11 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
 
       {stage === 'route' && route && (
         <div className="mt-4">
-          <RouteList route={route} onShowOnMap={onShowOnMap ? showOnMap : undefined} />
+          <RouteList
+            route={route}
+            onShowOnMap={onShowOnMap ? showOnMap : undefined}
+            onSelectPoint={setSelectedPoint}
+          />
           <button type="button" onClick={onClose} className="btn-secondary w-full mt-3">
             Готово
           </button>

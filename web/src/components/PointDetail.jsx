@@ -4,7 +4,7 @@ import { telHref } from '../phone';
 import { accessInfo } from '../point-access';
 import Sticker from './Sticker';
 
-export default function PointDetail({ point, onBack }) {
+export default function PointDetail({ point, onBack, backLabel = 'Назад к карте' }) {
   const typeInfo = POINT_TYPES[point.type] || POINT_TYPES.paper;
   const access = accessInfo(point);
   const callHref = telHref(point.phone);
@@ -25,7 +25,7 @@ export default function PointDetail({ point, onBack }) {
     <div className="px-4 pt-4 pb-24">
       <button onClick={onBack} className="btn-secondary mb-4 inline-flex items-center gap-2">
         <Sticker name="pin" size={20} className="!drop-shadow-none" />
-        Назад к карте
+        {backLabel}
       </button>
 
       <div className="card p-5">

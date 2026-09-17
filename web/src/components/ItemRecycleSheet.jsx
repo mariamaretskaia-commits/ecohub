@@ -3,14 +3,17 @@ import { api } from '../api';
 import { tg } from '../telegram';
 import { plannerCoords } from '../planner-coords';
 import RouteList from './RouteList';
+import PointDetail from './PointDetail';
 
 /**
- * «Куда сдать» для своего объявления: строит маршрут по названию и категории вещи.
+ * «Куда сдать» для своего объявления: все пункты города, принимающие вещь,
+ * по удалённости. Каждый пункт открывает подробную карточку.
  * Если вид вещи не входит в перечень приёма ни одного пункта – честно «Пункт не найден».
  */
 export default function ItemRecycleSheet({ item, onClose }) {
   const [route, setRoute] = useState(null);
   const [busy, setBusy] = useState(true);
+  const [selectedPoint, setSelectedPoint] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -25,6 +28,9 @@ export default function ItemRecycleSheet({ item, onClose }) {
           items: [{ name: item?.title, category: item?.category }],
           lat,
           lng,
+          all: true,
+          settlement: item?.settlement,
+          oblast: item?.oblast,
         });
         if (alive) setRoute(plan);
       } catch (err) {
@@ -35,6 +41,18 @@ export default function ItemRecycleSheet({ item, onClose }) {
     })();
     return () => { alive = false; };
   }, [item?.id]);
+
+  if (selectedPoint) {
+    return (
+      <div className="fixed inset-0 z-[210] bg-white overflow-y-auto">
+        <PointDetail
+          point={selectedPoint}
+          onBack={() => setSelectedPoint(null)}
+          backLabel="Назад к списку"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[210] bg-white px-4 pt-3 pb-6 overflow-y-auto">
@@ -55,7 +73,7 @@ export default function ItemRecycleSheet({ item, onClose }) {
       {busy ? (
         <p className="type-empty">Ищем пункты приёма...</p>
       ) : (
-        <RouteList route={route} />
+        <RouteList route={route} onSelectPoint={setSelectedPoint} />
       )}
 
       <button type="button" onClick={onClose} className="btn-secondary w-full mt-4">

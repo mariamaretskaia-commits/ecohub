@@ -317,7 +317,7 @@ body {
     @apply bg-white text-red-600 text-sm font-extrabold py-2.5 px-5 rounded-full border border-red-200 active:scale-95 transition-transform shadow-soft;
   }
   .card {
-    @apply bg-white/90 backdrop-blur-sm rounded-[1.75rem] shadow-card overflow-hidden;
+    @apply bg-white rounded-[1.75rem] shadow-card overflow-hidden;
   }
   .filter-chip {
     @apply inline-flex items-center justify-center gap-1.5 h-10 px-3.5 rounded-full text-xs leading-none font-extrabold whitespace-nowrap flex-none overflow-hidden transition-all;
