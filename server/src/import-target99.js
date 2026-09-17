@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { all, run } from './db.js';
+import { derivePointKinds } from './point-kinds.js';
 
 const TARGET99_POINTS = JSON.parse(
   readFileSync(new URL('./data/target99-points.json', import.meta.url), 'utf8')
@@ -8,7 +9,7 @@ const TARGET99_POINTS = JSON.parse(
 const COLS = [
   'name', 'organization', 'type', 'district', 'lat', 'lng', 'address', 'phone', 'website',
   'hours', 'prices', 'logistics', 'description', 'transit', 'source_key', 'short_address',
-  'accepts', 'last_synced', 'oblast', 'settlement', 'access_mode', 'source',
+  'accepts', 'accept_kinds', 'last_synced', 'oblast', 'settlement', 'access_mode', 'source',
 ];
 
 function normText(s) {
@@ -34,7 +35,7 @@ function toParams(p) {
   return [
     p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
     p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
-    p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source,
+    p.accepts, derivePointKinds(p).join(','), p.last_synced, p.oblast, p.settlement, p.access_mode, p.source,
   ];
 }
 

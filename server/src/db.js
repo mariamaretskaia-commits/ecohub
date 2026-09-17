@@ -218,6 +218,7 @@ function ensureSqliteSchema(db) {
   for (const [col, def] of [
     ['district', 'TEXT'], ['organization', 'TEXT'], ['transit', 'TEXT'],
     ['source_key', 'TEXT'], ['short_address', 'TEXT'], ['accepts', 'TEXT'],
+    ['accept_kinds', 'TEXT'],
     ['last_synced', 'TEXT'], ['source', 'TEXT'],
     ['oblast', "TEXT DEFAULT 'Гродненская область'"],
     ['settlement', "TEXT DEFAULT 'Гродно'"], ['access_mode', "TEXT DEFAULT 'counter'"],

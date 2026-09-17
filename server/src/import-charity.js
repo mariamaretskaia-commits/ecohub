@@ -1,5 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { all, run } from './db.js';
+import { derivePointKinds } from './point-kinds.js';
+
+/**
+ * Благотворительные организации принимают вещи и предметы первой необходимости
+ * (в т.ч. средства гигиены — памперсы, прокладки), даже если в источнике стоит
+ * общее «clothing». Курируем этот перечень явно.
+ */
+const CHARITY_KINDS = ['textile', 'hygiene', 'kids', 'household', 'books', 'toys'];
+
+function charityKinds(p) {
+  return [...new Set([...derivePointKinds(p), ...CHARITY_KINDS])];
+}
 
 const CHARITY_POINTS = JSON.parse(
   readFileSync(new URL('./data/charity-points.json', import.meta.url), 'utf8')
@@ -8,7 +20,7 @@ const CHARITY_POINTS = JSON.parse(
 const COLS = [
   'name', 'organization', 'type', 'district', 'lat', 'lng', 'address', 'phone', 'website',
   'hours', 'prices', 'logistics', 'description', 'transit', 'source_key', 'short_address',
-  'accepts', 'last_synced', 'oblast', 'settlement', 'access_mode', 'source',
+  'accepts', 'accept_kinds', 'last_synced', 'oblast', 'settlement', 'access_mode', 'source',
 ];
 
 function normText(s) {
@@ -34,7 +46,7 @@ function toParams(p) {
   return [
     p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
     p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
-    p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source,
+    p.accepts, charityKinds(p).join(','), p.last_synced, p.oblast, p.settlement, p.access_mode, p.source,
   ];
 }
 

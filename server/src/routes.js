@@ -17,7 +17,7 @@ import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem, auditItemAsync } from './trust/pipeline.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
-import { planRecyclingRoute, hasPointForCategory } from './vision.js';
+import { planRecyclingRoute, hasPointForItem } from './vision.js';
 import { categorizeItems, categorizeByRules } from './categorize.js';
 import { cacheStore } from './catcache.js';
 import { logCategorization, logFix } from './catlog.js';
@@ -725,7 +725,7 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
       });
       const withPoints = await Promise.all(items.map(async (it) => ({
         ...it,
-        pointFound: await hasPointForCategory(it.category),
+        pointFound: await hasPointForItem(it.name, it.category),
       })));
       res.json({ items: withPoints, provider });
     } catch (err) {
@@ -752,11 +752,14 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
 
   app.post('/api/vision/route', authMiddleware, async (req, res) => {
     try {
-      const { categories, lat, lng } = req.body || {};
-      if (!Array.isArray(categories) || !categories.length) {
-        return res.status(400).json({ error: 'Категории обязательны' });
+      const { items, categories, lat, lng } = req.body || {};
+      const list = Array.isArray(items) && items.length
+        ? items
+        : (Array.isArray(categories) ? categories : []);
+      if (!list.length) {
+        return res.status(400).json({ error: 'Вещи или категории обязательны' });
       }
-      res.json(await planRecyclingRoute(categories, lat, lng));
+      res.json(await planRecyclingRoute(list, lat, lng));
     } catch (err) {
       sendError(res, err);
     }

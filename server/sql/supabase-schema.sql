@@ -82,12 +82,15 @@ CREATE TABLE IF NOT EXISTS recycling_points (
   source_key TEXT,
   short_address TEXT,
   accepts TEXT,
+  accept_kinds TEXT,
   last_synced TIMESTAMPTZ,
   source TEXT,
   oblast TEXT DEFAULT 'Гродненская область',
   settlement TEXT DEFAULT 'Гродно',
   access_mode TEXT DEFAULT 'counter'
 );
+
+ALTER TABLE IF EXISTS recycling_points ADD COLUMN IF NOT EXISTS accept_kinds TEXT;
 
 CREATE TABLE IF NOT EXISTS eco_transactions (
   id BIGSERIAL PRIMARY KEY,

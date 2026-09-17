@@ -26,6 +26,9 @@ const MAJOR_CITIES = new Set([
 
 function acceptsType(point, type) {
   if (!type) return true;
+  const want = type === 'clothing' ? 'textile' : type;
+  const kinds = String(point.accept_kinds || '').split(',').map((item) => item.trim());
+  if (kinds.includes(want)) return true;
   if (point.type === type) return true;
   return String(point.accepts || '').split(',').map((item) => item.trim()).includes(type);
 }
@@ -211,6 +214,14 @@ export default function MapTab({ prefilter = [] }) {
     return sortByRelevance(filtered, filterTypes);
   }, [allPoints, loc, filterTypes]);
 
+  const typeCounts = useMemo(() => {
+    const counts = {};
+    for (const key of Object.keys(POINT_TYPES)) {
+      counts[key] = allPoints.filter((point) => acceptsType(point, key)).length;
+    }
+    return counts;
+  }, [allPoints]);
+
   const showGrodnoDistricts = loc.settlement === 'Гродно';
   const needTypeFirst = showGrodnoDistricts && filterTypes.length === 0;
   const hideMarkersForCountryZoom = !loc.settlement && zoom < 9;
@@ -307,6 +318,7 @@ export default function MapTab({ prefilter = [] }) {
         )}
         {Object.entries(POINT_TYPES).map(([key, val]) => {
           const active = filterTypes.includes(key);
+          if (!active && !typeCounts[key]) return null;
           return (
             <button
               type="button"

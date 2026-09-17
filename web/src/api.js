@@ -241,10 +241,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, category }),
     }),
-  planRecycling: ({ categories, lat, lng } = {}) =>
+  planRecycling: ({ items, categories, lat, lng } = {}) =>
     request('/api/vision/route', {
       method: 'POST',
-      body: JSON.stringify({ categories, lat, lng }),
+      body: JSON.stringify({ items, categories, lat, lng }),
     }),
 };
 

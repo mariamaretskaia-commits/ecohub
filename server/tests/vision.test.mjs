@@ -1,5 +1,5 @@
 /**
- * Route-планировщик переработки (vision.js).
+ * Route-планировщик переработки (vision.js + point-kinds.js).
  * Запуск: node --test tests/vision.test.mjs
  */
 process.env.DATABASE_URL = '';
@@ -7,7 +7,8 @@ process.env.DATABASE_URL = '';
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initDb, run, all } from '../src/db.js';
-import { mapCategoryToPointTypes, planRecyclingRoute, hasPointForCategory } from '../src/vision.js';
+import { mapCategoryToKinds, planRecyclingRoute, hasPointForItem } from '../src/vision.js';
+import { kindsForItem, derivePointKinds } from '../src/point-kinds.js';
 
 await initDb();
 
@@ -28,27 +29,55 @@ afterEach(async () => {
   }
 });
 
-test('mapCategoryToPointTypes: категории → типы пунктов', () => {
-  assert.deepEqual(mapCategoryToPointTypes('Одежда'), ['clothing']);
-  assert.deepEqual(mapCategoryToPointTypes('Женский гардероб'), ['clothing']);
-  assert.deepEqual(mapCategoryToPointTypes('Хобби, спорт и туризм'), ['other']);
-  assert.deepEqual(mapCategoryToPointTypes('Бытовая техника'), ['electronics']);
-  assert.deepEqual(mapCategoryToPointTypes('Ремонт и стройка'), ['metal', 'other']);
-  assert.deepEqual(mapCategoryToPointTypes('Мебель'), ['other']);
-  assert.deepEqual(mapCategoryToPointTypes('Красота и здоровье'), ['other'], 'бусы/косметика не в «Опасные отходы»');
-  assert.deepEqual(mapCategoryToPointTypes('Неизвестно'), ['other']);
+test('mapCategoryToKinds: категории → виды приёма', () => {
+  assert.deepEqual(mapCategoryToKinds('Одежда'), ['textile']);
+  assert.deepEqual(mapCategoryToKinds('Женский гардероб'), ['textile']);
+  assert.ok(mapCategoryToKinds('Бытовая техника').includes('electronics'));
+  assert.ok(mapCategoryToKinds('Ремонт и стройка').includes('metal'));
+  assert.deepEqual(mapCategoryToKinds('Мебель'), ['furniture']);
+  assert.deepEqual(mapCategoryToKinds('Другое'), []);
+  assert.deepEqual(mapCategoryToKinds('Неизвестно'), []);
 });
 
-test('hasPointForCategory: есть пункт под категорию или нет', async () => {
+test('kindsForItem: смешанная категория «Красота и здоровье»', () => {
+  assert.deepEqual(kindsForItem('прокладки', 'Красота и здоровье'), ['hygiene']);
+  assert.deepEqual(kindsForItem('подгузники Pampers', 'Красота и здоровье'), ['hygiene']);
+  assert.deepEqual(kindsForItem('туалетная бумага', 'Красота и здоровье'), ['hygiene']);
+  assert.deepEqual(kindsForItem('духи Chanel', 'Красота и здоровье'), ['cosmetics']);
+  assert.deepEqual(kindsForItem('помада', 'Красота и здоровье'), ['cosmetics']);
+  assert.deepEqual(kindsForItem('жемчужные бусы', 'Красота и здоровье'), ['jewelry']);
+  // Без понятного названия — все виды категории (честный поиск по любому из них).
+  assert.deepEqual(
+    kindsForItem('', 'Красота и здоровье'),
+    ['hygiene', 'cosmetics', 'jewelry', 'health'],
+  );
+});
+
+test('derivePointKinds: официальный текст приёма → виды', () => {
+  assert.deepEqual(
+    derivePointKinds({ type: 'clothing', accepts: 'одежда, обувь, гуманитарная помощь' }).sort(),
+    ['books', 'food', 'household', 'hygiene', 'kids', 'textile', 'toys'],
+  );
+  assert.deepEqual(
+    [...new Set(derivePointKinds({ type: 'paper', accepts: 'макулатура, стекло, ПЭТ-пластик, металлолом' }))].sort(),
+    ['glass', 'metal', 'paper', 'plastic'],
+  );
+  assert.deepEqual(
+    derivePointKinds({ type: 'electronics', accepts: 'акб, отработанные автомасла' }).sort(),
+    ['electronics', 'hazardous'],
+  );
+});
+
+test('hasPointForItem: есть пункт под вещь или нет', async () => {
   await run("DELETE FROM recycling_points WHERE name = 'Пункт Прочее'");
-  assert.equal(await hasPointForCategory('Одежда'), false, 'пока нет одежды – false');
-  assert.equal(await hasPointForCategory('Красота и здоровье'), false, 'других пунктов нет – false');
+  assert.equal(await hasPointForItem('куртка', 'Одежда'), false, 'пока нет одежды – false');
+  assert.equal(await hasPointForItem('духи', 'Красота и здоровье'), false, 'косметику не принимают');
   await run(
     `INSERT INTO recycling_points (name, type, lat, lng, address, accepts) VALUES (?, ?, ?, ?, ?, ?)`,
-    'Шарь-точка', 'clothing', 53.9, 23.9, 'ул. Тест 6', null,
+    'Пункт Одежда', 'clothing', 53.9, 23.9, 'ул. Тест 6', null,
   );
-  assert.equal(await hasPointForCategory('Одежда'), true, 'появился clothing – true');
-  assert.equal(await hasPointForCategory('Красота и здоровье'), false, 'other нет – false');
+  assert.equal(await hasPointForItem('куртка', 'Одежда'), true, 'появился clothing – true');
+  assert.equal(await hasPointForItem('духи', 'Красота и здоровье'), false, 'косметика всё ещё нет');
 });
 
 async function seedPoints() {
@@ -70,13 +99,16 @@ async function seedPoints() {
   );
   await run(
     `INSERT INTO recycling_points (name, type, lat, lng, address, accepts) VALUES (?, ?, ?, ?, ?, ?)`,
-    'Пункт Прочее', 'other', 53.72, 23.87, 'ул. Тест 5', null,
+    'Приют помощи', 'clothing', 53.72, 23.87, 'ул. Тест 5', 'гуманитарная помощь',
   );
 }
 
 test('planRecyclingRoute: одежда+электроника покрываются одним универсальным пунктом', async () => {
   await seedPoints();
-  const plan = await planRecyclingRoute(['Одежда', 'Бытовая техника']);
+  const plan = await planRecyclingRoute([
+    { name: 'куртка', category: 'Одежда' },
+    { name: 'телевизор', category: 'Бытовая техника' },
+  ]);
   assert.ok(plan.routes.length >= 1);
   const union = [...new Set(plan.routes.flatMap((r) => r.categories))];
   assert.deepEqual([...union].sort(), ['Бытовая техника', 'Одежда'].sort());
@@ -85,7 +117,7 @@ test('planRecyclingRoute: одежда+электроника покрывают
   assert.ok(maxCat === 2, 'объединение в один маршрут предпочтительно');
 });
 
-test('planRecyclingRoute: 5 категорий → ≤2 маршрута, всё покрыто, только принимаемые типы', async () => {
+test('planRecyclingRoute: 5 категорий → ≤2 маршрута и всё покрыто принимаемыми видами', async () => {
   await seedPoints();
   const cats = ['Одежда', 'Женский гардероб', 'Бытовая техника', 'Ремонт и стройка', 'Всё для дома'];
   const plan = await planRecyclingRoute(cats);
@@ -94,12 +126,10 @@ test('planRecyclingRoute: 5 категорий → ≤2 маршрута, всё
   assert.deepEqual([...new Set(covered)].sort(), [...cats].sort(), 'все категории покрыты');
   assert.deepEqual(plan.uncovered, []);
   for (const route of plan.routes) {
-    const accepted = new Set(
-      `${String(route.point.accepts || '')},${String(route.point.type || '')}`.split(','),
-    );
+    const accepted = derivePointKinds(route.point);
     for (const cat of route.categories) {
-      const ok = mapCategoryToPointTypes(cat).some((t) => accepted.has(t));
-      assert.ok(ok, `маршрут принимает ${cat}`);
+      const wanted = mapCategoryToKinds(cat);
+      assert.ok(wanted.some((k) => accepted.includes(k)), `пункт принимает ${cat}`);
     }
   }
 });
@@ -112,12 +142,24 @@ test('planRecyclingRoute: при координатах выбирается б�
   assert.ok(plan.routes[0].distanceKm < 1, 'ближайший пункт в <1 км');
 });
 
-test('planRecyclingRoute: отсутствующий тип пункта уходит в uncovered', async () => {
+test('planRecyclingRoute: гигиена → приют, косметика → пункт не найден', async () => {
   await seedPoints();
-  await run("DELETE FROM recycling_points WHERE name = 'Пункт Прочее'");
-  const plan = await planRecyclingRoute(['Красота и здоровье']);
-  assert.deepEqual(plan.routes, []);
+  const plan = await planRecyclingRoute([
+    { name: 'прокладки', category: 'Красота и здоровье' },
+    { name: 'духи', category: 'Красота и здоровье' },
+  ]);
+  const coveredNames = plan.routes.flatMap((r) => r.items);
+  assert.ok(coveredNames.includes('прокладки'), 'прокладки находят благотворительный пункт');
+  assert.ok(!coveredNames.includes('духи'), 'духи не попадают в маршрут');
   assert.deepEqual(plan.uncovered, ['Красота и здоровье']);
+  assert.equal(plan.routes[0].point.name, 'Приют помощи');
+});
+
+test('planRecyclingRoute: отсутствующий вид уходит в uncovered', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute([{ name: 'диван', category: 'Мебель' }]);
+  assert.deepEqual(plan.routes, []);
+  assert.deepEqual(plan.uncovered, ['Мебель']);
 });
 
 test('planRecyclingRoute: пустой список → пустой план', async () => {

@@ -1,5 +1,6 @@
 import { get, all, run, exec, isPostgres } from './db.js';
 import { POINTS, DATA_VERSION } from './points-data.js';
+import { derivePointKinds } from './point-kinds.js';
 import { importTarget99 } from './import-target99.js';
 import { importCharity } from './import-charity.js';
 import { grodnoArea } from './grodno-areas.js';
@@ -36,28 +37,29 @@ async function seedPoints() {
   for (const p of POINTS) {
     const fallbackKey = String(p.organization || '').toLowerCase() + '|' + String(p.address || '').toLowerCase();
     const key = String(p.source_key || fallbackKey).toLowerCase();
+    const acceptKinds = derivePointKinds(p).join(',');
     const id = bySource.get(key);
     if (id) {
       await run(`
         UPDATE recycling_points SET
           name = ?, organization = ?, type = ?, district = ?, lat = ?, lng = ?, address = ?,
           phone = ?, website = ?, hours = ?, prices = ?, logistics = ?, description = ?,
-          transit = ?, short_address = ?, accepts = ?, last_synced = ?, oblast = ?,
+          transit = ?, short_address = ?, accepts = ?, accept_kinds = ?, last_synced = ?, oblast = ?,
           settlement = ?, access_mode = ?, source = ?
         WHERE id = ?
       `,
       p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
       p.hours, p.prices, p.logistics, p.description, p.transit, p.short_address, p.accepts,
-      p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '', id);
+      acceptKinds, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '', id);
     } else {
       const r = await run(`
         INSERT INTO recycling_points
-          (${COLS.join(', ')})
-        VALUES (${COLS.map(() => '?').join(', ')})
+          (${COLS.join(', ')}, accept_kinds)
+        VALUES (${COLS.map(() => '?').join(', ')}, ?)
       `,
       p.name, p.organization, p.type, p.district, p.lat, p.lng, p.address, p.phone, p.website,
       p.hours, p.prices, p.logistics, p.description, p.transit, p.source_key, p.short_address,
-      p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '');
+      p.accepts, p.last_synced, p.oblast, p.settlement, p.access_mode, p.source || '', acceptKinds);
       inserted += 1;
       bySource.set(key, r.lastInsertRowid);
     }

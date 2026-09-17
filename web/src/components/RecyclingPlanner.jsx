@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { api, RECYCLING_CATEGORIES, POINT_TYPES } from '../api';
 import { tg } from '../telegram';
-import { getPlace, CITY_DISTRICT_COORDS } from '../belarus-places';
+import { plannerCoords } from '../planner-coords';
 import Sticker from './Sticker';
+import RouteList from './RouteList';
 
 const MAX_ITEMS = 30;
 
@@ -13,19 +14,6 @@ function parseNames(text) {
       .map((s) => s.trim())
       .filter(Boolean),
   )].slice(0, MAX_ITEMS);
-}
-
-/** Координаты выбранной локации (район города точнее общего центра). */
-function plannerCoords(loc) {
-  if (!loc) return null;
-  if (loc.district && loc.settlement) {
-    const dc = CITY_DISTRICT_COORDS[loc.settlement];
-    const c = dc && dc[loc.district];
-    if (c) return c;
-  }
-  const place = getPlace(loc.oblast, loc.settlement);
-  if (place?.lat != null && place?.lng != null) return [place.lat, place.lng];
-  return null;
 }
 
 /**
@@ -67,18 +55,18 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
     if (name) api.categorizeFix(name, category).catch(() => {});
   };
 
-  const uniqueCategories = () => [...new Set(items.map((row) => row.category).filter(Boolean))];
-
   const handleBuildRoute = async () => {
-    const categories = uniqueCategories();
-    if (!categories.length) {
+    const list = items
+      .filter((row) => row.category)
+      .map((row) => ({ name: row.name, category: row.category }));
+    if (!list.length) {
       tg.showAlert('Выберите хотя бы одну категорию.');
       return;
     }
     setBusy(true);
     try {
       const [lat, lng] = plannerCoords(loc) || [null, null];
-      const plan = await api.planRecycling({ categories, lat, lng });
+      const plan = await api.planRecycling({ items: list, lat, lng });
       setRoute(plan);
       setStage('route');
     } catch (err) {
@@ -88,18 +76,12 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
     }
   };
 
-  const pointTypes = () => {
-    if (!route?.routes?.length) return [];
-    return [...new Set(route.routes.map((r) => String(r.point?.type || '').trim()).filter(Boolean))];
-  };
+  const typesOnMap = route?.routes?.length
+    ? [...new Set(route.routes.map((r) => String(r.point?.type || '').trim()).filter(Boolean))]
+    : [];
+  const firstPoint = route?.routes?.[0]?.point;
+  const showOnMap = () => onShowOnMap?.(typesOnMap, firstPoint);
 
-  const showOnMap = () => {
-    const types = pointTypes();
-    const first = route?.routes?.[0]?.point;
-    onShowOnMap?.(types, first);
-  };
-
-  const cats = uniqueCategories();
   const namesCount = parseNames(text).length;
 
   return (
@@ -149,24 +131,25 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
         <>
           <div className="mt-4 space-y-2">
             {items.map((row, idx) => (
-              <div key={`${idx}-${row.name}`} className="card p-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="type-title truncate">{row.name}</p>
-                  {row.pointFound === false ? (
-                    <p className="type-kicker text-red-500">Пункт не найден</p>
-                  ) : (
-                    <p className="type-kicker">{row.category}</p>
+              <div key={`${idx}-${row.name}`} className="card p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="type-title flex-1 min-w-0 break-words">{row.name}</p>
+                  {row.pointFound === false && (
+                    <span className="type-kicker text-red-500 shrink-0">Пункт не найден</span>
                   )}
                 </div>
-                <select
-                  value={row.category}
-                  onChange={(e) => changeCategory(idx, e.target.value, row.name)}
-                  className="field !p-2 text-sm w-36"
-                >
-                  {RECYCLING_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                <label className="block mt-2">
+                  <span className="type-kicker">Категория</span>
+                  <select
+                    value={row.category}
+                    onChange={(e) => changeCategory(idx, e.target.value, row.name)}
+                    className="field w-full text-sm mt-1"
+                  >
+                    {RECYCLING_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
             ))}
           </div>
@@ -185,46 +168,9 @@ export default function RecyclingPlanner({ loc = null, onClose, onShowOnMap }) {
       )}
 
       {stage === 'route' && route && (
-        <div className="mt-4 space-y-3">
-          <p className="type-label">Маршрут сдачи</p>
-          {route.routes.length === 0 && (
-            <p className="type-empty">Пункт не найден для этих категорий. Можно попробовать поискать отдельно.</p>
-          )}
-          {route.routes.map((r) => {
-            const info = POINT_TYPES[r.point?.type] || POINT_TYPES.other;
-            return (
-              <div key={r.point?.id} className="card p-4">
-                <div className="flex items-center gap-2">
-                  <Sticker name={info.sticker} size={28} />
-                  <div className="flex-1 min-w-0">
-                    <p className="type-title">{r.point?.short_address || r.point?.address || r.point?.name}</p>
-                    <p className="type-meta">
-                      {info.label}
-                      {r.distanceKm != null && Number.isFinite(r.distanceKm) && ` · ${r.distanceKm < 1 ? 'рядом' : `${r.distanceKm.toFixed(1)} км`}`}
-                    </p>
-                  </div>
-                </div>
-                <p className="type-body mt-2">{r.reason}</p>
-                <p className="type-kicker mt-1">{r.categories?.join(', ')}</p>
-              </div>
-            );
-          })}
-          {route.uncovered?.length > 0 && (
-            <p className="type-empty">
-              Пункт не найден для: {route.uncovered.join(', ')}. Можно попробовать поискать отдельно.
-            </p>
-          )}
-          {cats.length > 0 && (
-            <p className="type-kicker">
-              Категории маршрута: {cats.join(' · ')}
-            </p>
-          )}
-          {pointTypes().length > 0 && (
-            <button type="button" onClick={showOnMap} className="btn-secondary w-full">
-              Показать на карте
-            </button>
-          )}
-          <button type="button" onClick={onClose} className="btn-secondary w-full">
+        <div className="mt-4">
+          <RouteList route={route} onShowOnMap={onShowOnMap ? showOnMap : undefined} />
+          <button type="button" onClick={onClose} className="btn-secondary w-full mt-3">
             Готово
           </button>
         </div>

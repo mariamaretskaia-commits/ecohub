@@ -5,6 +5,7 @@ import Sticker from './Sticker';
 import { formatLocation } from '../locations';
 import { itemPhotos, photoSrc } from '../photos';
 import PhotoLightbox from './PhotoLightbox';
+import ItemRecycleSheet from './ItemRecycleSheet';
 
 export default function ItemCard({
   item,
@@ -24,6 +25,7 @@ export default function ItemCard({
   const [slide, setSlide] = useState(0);
   const [lightbox, setLightbox] = useState(null);
   const [fullItem, setFullItem] = useState(null);
+  const [recycleOpen, setRecycleOpen] = useState(false);
 
   useEffect(() => {
     setFavorited(Boolean(item.is_favorited));
@@ -266,6 +268,15 @@ export default function ItemCard({
             </button>
           ) : (
             <>
+              <button
+                type="button"
+                onClick={() => setRecycleOpen(true)}
+                disabled={busy}
+                className="btn-secondary w-full flex items-center justify-center gap-2"
+              >
+                <Sticker name="recycle" size={20} className="!drop-shadow-none" />
+                Куда сдать
+              </button>
               <button onClick={handleGive} disabled={busy} className="btn-secondary w-full flex items-center justify-center gap-2">
                 Вещь отдана
               </button>
@@ -291,6 +302,10 @@ export default function ItemCard({
           )}
         </div>
       </div>
+
+      {recycleOpen && (
+        <ItemRecycleSheet item={item} onClose={() => setRecycleOpen(false)} />
+      )}
 
       {lightbox !== null && (
         <PhotoLightbox

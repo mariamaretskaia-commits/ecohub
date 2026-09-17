@@ -62,10 +62,10 @@ export async function storeItemPhotos(files) {
 }
 
 /**
- * Генерирует JPEG-миниатюру (≈640px по большей стороне, q0.8) для data/URL-фото,
- * чтобы лента была чёткой. Ошибки не бросает – вернёт null для битого файла.
+ * Генерирует JPEG-миниатюру (≈1080px по большей стороне, q0.82) для data/URL-фото,
+ * чтобы лента была чёткой (≥720p). Ошибки не бросает – вернёт null для битого файла.
  */
-export async function thumbDataUrl(buffer, { maxSide = 640, quality = 0.8 } = {}) {
+export async function thumbDataUrl(buffer, { maxSide = 1080, quality = 0.82 } = {}) {
   try {
     if (!buffer || !buffer.length) return null;
     const img = await Jimp.read(buffer);
