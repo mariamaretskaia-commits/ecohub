@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { tg } from '../telegram';
 import Sticker from './Sticker';
@@ -26,6 +26,10 @@ export default function ItemCard({
   const [lightbox, setLightbox] = useState(null);
   const [fullItem, setFullItem] = useState(null);
   const [recycleOpen, setRecycleOpen] = useState(false);
+  const [offsetX, setOffsetX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragRef = useRef(null);
+  const suppressClickRef = useRef(false);
 
   useEffect(() => {
     setFavorited(Boolean(item.is_favorited));
@@ -46,6 +50,70 @@ export default function ItemCard({
   const openLightbox = (idx) => {
     setLightbox(idx);
     loadDetail().catch(() => {});
+  };
+
+  // Свайп по фото в карточке (2+ фото): листаем влево/вправо, не открывая лайтбокс.
+  const touchStart = (e) => {
+    if (photos.length < 2) return;
+    const t = e.touches[0];
+    dragRef.current = {
+      x: t.clientX,
+      y: t.clientY,
+      slide: active,
+      horizontal: false,
+      vertical: false,
+      time: Date.now(),
+    };
+  };
+
+  const touchMove = (e) => {
+    const d = dragRef.current;
+    if (!d || photos.length < 2) return;
+    const t = e.touches[0];
+    const dx = t.clientX - d.x;
+    const dy = t.clientY - d.y;
+    if (!d.horizontal && !d.vertical) {
+      if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) {
+        d.vertical = true;
+        return;
+      }
+      if (Math.abs(dx) > 8 && Math.abs(dx) >= Math.abs(dy)) {
+        d.horizontal = true;
+        setDragging(true);
+      } else {
+        return;
+      }
+    }
+    if (d.vertical) return;
+    setOffsetX(dx);
+  };
+
+  const touchEnd = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    dragRef.current = null;
+    setDragging(false);
+    setOffsetX(0);
+    if (!d.horizontal) return;
+    const ch = e.changedTouches?.[0];
+    const dx = ch ? ch.clientX - d.x : 0;
+    const elapsed = Date.now() - d.time;
+    const flick = Math.abs(dx) > 30 && elapsed < 300;
+    if (dx < -70 || (flick && dx < 0)) {
+      setSlide(Math.min(d.slide + 1, photos.length - 1));
+    } else if (dx > 70 || (flick && dx > 0)) {
+      setSlide(Math.max(d.slide - 1, 0));
+    }
+    suppressClickRef.current = true;
+    setTimeout(() => { suppressClickRef.current = false; }, 350);
+  };
+
+  const handlePhotoClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    openLightbox(active);
   };
 
   const isOwner = ownerMode
@@ -141,12 +209,18 @@ export default function ItemCard({
   return (
     <div className={`card relative overflow-hidden ${inactive ? 'opacity-70' : ''}`}>
       {photos.length > 0 ? (
-        <div className={`relative bg-mint-50 ${inactive ? 'grayscale' : ''}`}>
+        <div className={`relative overflow-hidden touch-pan-y bg-mint-50 ${inactive ? 'grayscale' : ''}`}>
           <button
             type="button"
-            className="block w-full aspect-[3/4] overflow-hidden p-0 border-0 bg-transparent"
-            onClick={() => openLightbox(active)}
+            className={`block w-full aspect-[3/4] overflow-hidden p-0 border-0 bg-transparent ${
+              dragging ? '' : 'transition-transform duration-200 ease-out'
+            }`}
+            style={offsetX ? { transform: `translateX(${offsetX}px)` } : undefined}
+            onClick={handlePhotoClick}
             aria-label="Открыть фото"
+            onTouchStart={touchStart}
+            onTouchMove={touchMove}
+            onTouchEnd={touchEnd}
           >
             <img
               src={photoSrc(photos[active])}
