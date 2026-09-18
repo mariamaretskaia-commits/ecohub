@@ -4,7 +4,7 @@
  */
 import { get, all, run } from './db.js';
 import { thumbDataUrl } from './storage.js';
-import { parseItemPhotos } from './items.js';
+import { parseItemPhotos, removeItemWithAssets } from './items.js';
 import { LEGACY_CATEGORY_MAP, ITEM_CATEGORIES } from './moderation.js';
 import { cleanPointField } from './points-text.js';
 import {
@@ -107,6 +107,18 @@ export function registerTrustAdminRoutes(app) {
       if (!telegram_id) return res.status(400).json({ error: 'telegram_id обязателен' });
       await adminUnbanUser(telegram_id);
       res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Удаление объявления (админ, любой item_id; фотографии тоже удаляются)
+  app.post('/api/trust/admin/items/:id/delete', verifyToken, async (req, res) => {
+    try {
+      const item = await get('SELECT * FROM items WHERE id = ?', req.params.id);
+      if (!item) return res.status(404).json({ error: 'Объявление не найдено' });
+      await removeItemWithAssets(item);
+      res.json({ ok: true, deleted: Number(item.id) });
     } catch (err) {
       sendError(res, err);
     }
