@@ -16,29 +16,33 @@ export function dialNumber(value) {
   return digits;
 }
 
-export function telHref(value) {
-  const number = dialNumber(value);
-  return number ? `tel:${number}` : '';
-}
-
-/** Открыть звонилку с подставленным номером. */
-export function openDialer(value) {
-  const href = telHref(value);
-  if (!href) return false;
+/** Синхронное копирование в буфер (внутри жеста). Возвращает успех. */
+export function copyText(text) {
+  const value = String(text || '');
+  if (!value) return false;
   try {
-    const link = document.createElement('a');
-    link.href = href;
-    link.rel = 'noopener';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    return true;
+    const area = document.createElement('textarea');
+    area.value = value;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '-1000px';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    area.setSelectionRange(0, value.length);
+    const ok = document.execCommand('copy');
+    area.remove();
+    if (ok) return true;
   } catch {
-    try {
-      window.location.href = href;
-      return true;
-    } catch {
-      return false;
-    }
+    /* fall through to async clipboard */
   }
+  try {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(value).catch(() => {});
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
 }

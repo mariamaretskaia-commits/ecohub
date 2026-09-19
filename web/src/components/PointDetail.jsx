@@ -1,18 +1,26 @@
+import { useState } from 'react';
 import { api, POINT_TYPES } from '../api';
 import { tg } from '../telegram';
-import { telHref, openDialer } from '../phone';
+import { dialNumber, copyText } from '../phone';
 import { accessInfo } from '../point-access';
 import Sticker from './Sticker';
 
 export default function PointDetail({ point, onBack, backLabel = 'Назад к карте' }) {
   const typeInfo = POINT_TYPES[point.type] || POINT_TYPES.paper;
   const access = accessInfo(point);
-  const callHref = telHref(point.phone);
+  const phoneNumber = dialNumber(point.phone);
   const isTelegramSite = /t\.me\//i.test(point.website || '');
+  const [callHint, setCallHint] = useState('');
 
   const handleCall = () => {
-    if (!callHref) return;
-    openDialer(point.phone);
+    if (!phoneNumber) return;
+    const copied = copyText(phoneNumber);
+    setCallHint(
+      copied
+        ? `Номер ${phoneNumber} скопирован. Вставьте его в приложении звонилки.`
+        : `Номер ${phoneNumber}. Нажмите и удерживайте номер, чтобы скопировать вручную.`,
+    );
+    window.setTimeout(() => setCallHint(''), 6000);
   };
 
   const handleWebsite = () => {
@@ -79,14 +87,14 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
         </div>
 
         <div className="flex gap-2 mt-5">
-          {callHref && (
+          {phoneNumber && (
             <button
               type="button"
               onClick={handleCall}
               className="btn-primary flex-1 py-2.5 inline-flex items-center justify-center gap-1.5"
             >
               <Sticker name="phone" size={20} className="!drop-shadow-none" />
-              Позвонить
+              Скопировать номер
             </button>
           )}
           {isTelegramSite && (
@@ -102,6 +110,10 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
             </button>
           )}
         </div>
+
+        {callHint && (
+          <p className="type-meta mt-2 text-mint-700 select-all" role="status">{callHint}</p>
+        )}
       </div>
     </div>
   );
@@ -115,12 +127,12 @@ function InfoRow({ sticker, label, value, href, onPress }) {
   );
   if (onPress) {
     return (
-      <div className="flex gap-2.5 items-start">
+      <div className="flex gap-2.5 items-start cursor-pointer" onClick={onPress} role="button">
         <Sticker name={sticker} size={22} className="mt-0.5 !drop-shadow-none" />
-        <button type="button" onClick={onPress} className="text-left">
+        <div>
           {content}
-          <span className="type-body text-mint-700 underline underline-offset-2">{value}</span>
-        </button>
+          <span className="type-body text-mint-700 underline underline-offset-2 select-all">{value}</span>
+        </div>
       </div>
     );
   }
