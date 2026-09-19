@@ -126,24 +126,22 @@ export function buildKeyboard(item, webAppUrl) {
   return undefined;
 }
 
-/** Отправить напоминания и пометить отправленное (даже при ошибке доставки). */
+/** Отправить напоминания и пометить отправленное (маркер только при успешной доставке). */
 export async function sendUnclaimedNudges(bot, webAppUrl = '') {
   const items = await selectItemsForUnclaimedNudge();
   let sent = 0;
   for (const item of items) {
+    if (!bot || !item.owner_tg) continue;
     try {
-      if (bot && item.owner_tg) {
-        await bot.telegram.sendMessage(
-          item.owner_tg,
-          buildUnclaimedText(item),
-          { disable_notification: false, reply_markup: buildKeyboard(item, webAppUrl) },
-        );
-      }
+      await bot.telegram.sendMessage(
+        item.owner_tg,
+        buildUnclaimedText(item),
+        { disable_notification: false, reply_markup: buildKeyboard(item, webAppUrl) },
+      );
+      await run('UPDATE items SET unclaimed_nudge_at = datetime(\'now\') WHERE id = ?', item.id);
       sent += 1;
     } catch (err) {
       console.warn(`[nudge] не удалось отправить напоминание по объявлению ${item.id}: ${err.message}`);
-    } finally {
-      await run('UPDATE items SET unclaimed_nudge_at = datetime(\'now\') WHERE id = ?', item.id);
     }
   }
   return sent;

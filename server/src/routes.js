@@ -95,7 +95,7 @@ export function registerUserRoutes(app, authMiddleware) {
   app.patch('/api/me/nudges', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
-      res.json(await setNudgesDisabled(user.id, Boolean(req.body?.enabled === false)));
+      res.json(await setNudgesDisabled(user.id, Boolean(req.body?.disabled)));
     } catch (err) {
       sendError(res, err);
     }

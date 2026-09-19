@@ -199,6 +199,41 @@ test('sendUnclaimedNudges: шлёт одно сообщение с кнопка�
   assert.equal(bot.calls.length, 0, 'повторно не отправляется');
 });
 
+test('sendUnclaimedNudges: при сбое доставки маркер не ставится, повтор возможен', async () => {
+  const owner = await makeUser(nextTg());
+  const item = await insertItem(owner.id, {
+    title: 'Не получилось доставить',
+    unclaimed_delete_at: "datetime('now', '+7 days')",
+  });
+
+  const failingBot = {
+    telegram: {
+      async sendMessage() {
+        throw new Error('Telegram API: connection refused');
+      },
+    },
+  };
+  const sent = await sendUnclaimedNudges(failingBot, 'https://ecohub-baoc.onrender.com');
+  assert.equal(sent, 0);
+  assert.equal(await get('SELECT unclaimed_nudge_at FROM items WHERE id = ?', item.id).then((r) => r.unclaimed_nudge_at), null, 'маркер не ставится при ошибке');
+
+  const okBot = makeBot();
+  const after = await sendUnclaimedNudges(okBot, 'https://ecohub-baoc.onrender.com');
+  assert.equal(after, 1);
+  assert.equal(okBot.calls.length, 1, 'повторная попытка доставляет');
+});
+
+test('sendUnclaimedNudges: без бота ничего не отправляется и не помечается', async () => {
+  const owner = await makeUser(nextTg());
+  await insertItem(owner.id, {
+    title: 'Нет бота',
+    unclaimed_delete_at: "datetime('now', '+7 days')",
+  });
+  const sent = await sendUnclaimedNudges(null, 'https://ecohub-baoc.onrender.com');
+  assert.equal(sent, 0);
+  assert.equal((await all("SELECT * FROM items WHERE title = 'Нет бота' AND unclaimed_nudge_at IS NOT NULL")).length, 0);
+});
+
 test('buildKeyboard: без типа пункта нет кнопки карты', () => {
   const kb = buildKeyboard({ category: 'Мебель' }, 'https://app.example');
   const urls = (kb?.inline_keyboard || []).flat().map((b) => b.web_app?.url).filter(Boolean);

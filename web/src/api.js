@@ -171,8 +171,8 @@ export const api = {
       body: JSON.stringify({ terms_rules: true, terms_privacy: true }),
     }),
   deleteAccount: () => request('/api/me', { method: 'DELETE' }),
-  setNudges: (enabled) =>
-    request('/api/me/nudges', { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  setNudges: (disabled) =>
+    request('/api/me/nudges', { method: 'PATCH', body: JSON.stringify({ disabled }) }),
   exportData: () => request('/api/me/export'),
   getExportToken: () =>
     request('/api/me/export/token', { method: 'POST' }),

@@ -214,12 +214,12 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
             disabled={togglingNudges}
             aria-pressed={!nudgesOff}
             aria-label={nudgesOff ? 'Включить напоминания и авто-удаление' : 'Отключить напоминания и авто-удаление'}
-            className="shrink-0 w-14 h-8 rounded-full relative transition-colors"
+            className="shrink-0 w-16 h-11 rounded-full relative transition-colors cursor-pointer active:scale-95"
             style={{ background: nudgesOff ? '#cbd5e1' : '#66c68a' }}
           >
             <span
-              className="absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-all"
-              style={{ left: nudgesOff ? 4 : 28 }}
+              className="absolute top-1.5 w-7 h-7 rounded-full bg-white shadow transition-all pointer-events-none"
+              style={{ left: nudgesOff ? 4 : 32 }}
             />
           </button>
         </div>
