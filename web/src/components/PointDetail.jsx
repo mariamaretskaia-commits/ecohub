@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { api, POINT_TYPES } from '../api';
 import { tg } from '../telegram';
-import { telHref } from '../phone';
+import { telHref, dialNumber, copyText, openDialer } from '../phone';
 import { accessInfo } from '../point-access';
 import Sticker from './Sticker';
 
@@ -9,10 +10,19 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
   const access = accessInfo(point);
   const callHref = telHref(point.phone);
   const isTelegramSite = /t\.me\//i.test(point.website || '');
+  const [callHint, setCallHint] = useState('');
 
   const handleCall = () => {
     if (!callHref) return;
-    window.location.href = callHref;
+    const number = dialNumber(point.phone);
+    const copied = copyText(number);
+    setCallHint(
+      copied
+        ? `Номер ${number} скопирован. Если не подставился – вставьте его в приложении звонилки.`
+        : `Номер ${number}. Если звонилка не открылась – наберите его вручную.`,
+    );
+    window.setTimeout(() => setCallHint(''), 6000);
+    openDialer(point.phone);
   };
 
   const handleWebsite = () => {
@@ -67,7 +77,7 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
               sticker="phone"
               label="Телефон"
               value={point.phone}
-              href={callHref}
+              onPress={handleCall}
             />
           )}
           {point.transit && <InfoRow sticker="bus" label="Ближайшая остановка" value={point.transit} />}
@@ -80,14 +90,14 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
 
         <div className="flex gap-2 mt-5">
           {callHref && (
-            <a
-              href={callHref}
+            <button
+              type="button"
               onClick={handleCall}
-              className="btn-primary flex-1 py-2.5 inline-flex items-center justify-center gap-1.5 no-underline"
+              className="btn-primary flex-1 py-2.5 inline-flex items-center justify-center gap-1.5"
             >
               <Sticker name="phone" size={20} className="!drop-shadow-none" />
               Позвонить
-            </a>
+            </button>
           )}
           {isTelegramSite && (
             <button onClick={handleWebsite} className="btn-secondary flex-1 inline-flex items-center justify-center gap-1.5">
@@ -102,17 +112,37 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
             </button>
           )}
         </div>
+
+        {callHint && (
+          <p className="type-meta mt-2 text-mint-700" role="status">{callHint}</p>
+        )}
       </div>
     </div>
   );
 }
 
-function InfoRow({ sticker, label, value, href }) {
+function InfoRow({ sticker, label, value, href, onPress }) {
+  const content = (
+    <>
+      <span className="type-label">{label}: </span>
+    </>
+  );
+  if (onPress) {
+    return (
+      <div className="flex gap-2.5 items-start">
+        <Sticker name={sticker} size={22} className="mt-0.5 !drop-shadow-none" />
+        <button type="button" onClick={onPress} className="text-left">
+          {content}
+          <span className="type-body text-mint-700 underline underline-offset-2">{value}</span>
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="flex gap-2.5 items-start">
       <Sticker name={sticker} size={22} className="mt-0.5 !drop-shadow-none" />
       <div>
-        <span className="type-label">{label}: </span>
+        {content}
         {href ? (
           <a href={href} className="type-body text-mint-700 underline underline-offset-2">
             {value}
