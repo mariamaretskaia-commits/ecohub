@@ -21,38 +21,7 @@ export function telHref(value) {
   return number ? `tel:${number}` : '';
 }
 
-/** Синхронное копирование в буфер (внутри жеста). Возвращает успех. */
-export function copyText(text) {
-  const value = String(text || '');
-  if (!value) return false;
-  try {
-    const area = document.createElement('textarea');
-    area.value = value;
-    area.setAttribute('readonly', '');
-    area.style.position = 'fixed';
-    area.style.top = '-1000px';
-    area.style.opacity = '0';
-    document.body.appendChild(area);
-    area.select();
-    area.setSelectionRange(0, value.length);
-    const ok = document.execCommand('copy');
-    area.remove();
-    if (ok) return true;
-  } catch {
-    /* fall through to async clipboard */
-  }
-  try {
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(value).catch(() => {});
-      return true;
-    }
-  } catch {
-    /* ignore */
-  }
-  return false;
-}
-
-/** Открыть звонилку с подставленным номером (после копирования). */
+/** Открыть звонилку с подставленным номером. */
 export function openDialer(value) {
   const href = telHref(value);
   if (!href) return false;

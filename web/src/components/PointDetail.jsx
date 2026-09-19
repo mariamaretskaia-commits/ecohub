@@ -1,7 +1,6 @@
-import { useState } from 'react';
 import { api, POINT_TYPES } from '../api';
 import { tg } from '../telegram';
-import { telHref, dialNumber, copyText, openDialer } from '../phone';
+import { telHref, openDialer } from '../phone';
 import { accessInfo } from '../point-access';
 import Sticker from './Sticker';
 
@@ -10,18 +9,9 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
   const access = accessInfo(point);
   const callHref = telHref(point.phone);
   const isTelegramSite = /t\.me\//i.test(point.website || '');
-  const [callHint, setCallHint] = useState('');
 
   const handleCall = () => {
     if (!callHref) return;
-    const number = dialNumber(point.phone);
-    const copied = copyText(number);
-    setCallHint(
-      copied
-        ? `Номер ${number} скопирован. Если не подставился – вставьте его в приложении звонилки.`
-        : `Номер ${number}. Если звонилка не открылась – наберите его вручную.`,
-    );
-    window.setTimeout(() => setCallHint(''), 6000);
     openDialer(point.phone);
   };
 
@@ -112,10 +102,6 @@ export default function PointDetail({ point, onBack, backLabel = 'Назад к 
             </button>
           )}
         </div>
-
-        {callHint && (
-          <p className="type-meta mt-2 text-mint-700" role="status">{callHint}</p>
-        )}
       </div>
     </div>
   );
