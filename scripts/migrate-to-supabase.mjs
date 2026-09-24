@@ -88,9 +88,16 @@ async function main() {
   }
 
   for (const t of tables) {
+    const hasId = await dst.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'id'`,
+      [t],
+    );
+    if (!hasId.rows.length) continue;
     await dst.query(
-      `SELECT setval(pg_get_serial_sequence('${t}', 'id'),
-        COALESCE((SELECT MAX(id) FROM "${t}"), 1));`,
+      `SELECT setval(seq, COALESCE((SELECT MAX(id) FROM "${t}"), 1))
+       FROM (SELECT pg_get_serial_sequence('${t}', 'id') AS seq) s
+       WHERE seq IS NOT NULL`,
     );
   }
   console.log('Sequences reset');
