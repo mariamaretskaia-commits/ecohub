@@ -41,7 +41,8 @@ function Get-RenderCli {
 try {
   $renderCli = Get-RenderCli
   $currentIp = Resolve-PublicIp
-  if ($renderCli -and $currentIp) {
+  $isRenderPg = $env:PG_URL -match '\.render\.com'
+  if (($renderCli -and $currentIp) -and $isRenderPg) {
     $pgIdFile = "C:\Users\Admin\eco-db-backups\.pg-id.txt"
     $pgName = "ecohub-db"
     if (Test-Path -LiteralPath $pgIdFile) {
@@ -61,7 +62,7 @@ try {
       if ($LASTEXITCODE -ne 0) { Write-Output "WARN: allow-list update failed (exit $LASTEXITCODE)" }
     }
   } else {
-    Write-Output "WARN: render CLI or public IP unavailable; skipping allow-list sync"
+    Write-Output "WARN: render CLI / public IP unavailable, or PG_URL is not a Render Postgres; skipping allow-list sync"
   }
 } catch {
   Write-Output "WARN: allow-list sync skipped: $($_.Exception.Message)"

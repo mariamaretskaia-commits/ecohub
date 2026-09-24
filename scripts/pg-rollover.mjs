@@ -109,6 +109,14 @@ writeFileSync(PG_ID_FILE, pg.id, 'utf8');
 console.log(`current free PG ${pg.id} (${pg.name}), plan=${pg.plan}, expiresAt=${pg.expiresAt}, status=${pg.status}`);
 log(`pg-rollover check: ${pg.id} expires ${pg.expiresAt}`);
 
+const env = await api('GET', `/services/${SERVICE_ID}/env-vars`);
+const dbUrl = (env && env.envVars && env.envVars.DATABASE_URL && env.envVars.DATABASE_URL.value) || '';
+if (!dbUrl.includes('.render.com')) {
+  console.log('DATABASE_URL does not point to a Render Postgres -> rollover is obsolete, exiting');
+  log('pg-rollover: DATABASE_URL not a Render free PG -> obsolete, skip');
+  process.exit(0);
+}
+
 if (!isExpired(pg)) {
   console.log('not expired yet; refreshing dump + allow-list via backup-weekly.ps1');
   const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(REPO, 'scripts', 'backup-weekly.ps1')], { cwd: REPO, stdio: 'inherit' });
