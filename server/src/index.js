@@ -174,15 +174,6 @@ async function setupTelegram(botInstance, url) {
 
 async function main() {
   await initDb();
-  if (process.env.ECO_LOCAL === '1') {
-    console.log('🤖 ECO_LOCAL=1 – seed пропущен (данные общие с продом)');
-  } else {
-    try {
-      await runSeed();
-    } catch (err) {
-      console.warn('⚠️ Seed skipped (non-fatal):', err.message);
-    }
-  }
 
   app.listen(PORT, async () => {
     console.log(`♻️ EcoHub API running on http://localhost:${PORT}`);
@@ -197,6 +188,16 @@ async function main() {
       setupTelegram(bot, webAppUrl);
     }
   });
+
+  if (process.env.ECO_LOCAL === '1') {
+    console.log('🤖 ECO_LOCAL=1 – seed пропущен (данные общие с продом)');
+  } else {
+    try {
+      await runSeed();
+    } catch (err) {
+      console.warn('⚠️ Seed skipped (non-fatal):', err.message);
+    }
+  }
 }
 
 main().catch((err) => {
