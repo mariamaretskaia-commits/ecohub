@@ -25,6 +25,21 @@ const STYLE = `
   footer { margin-top: 40px; padding-top: 14px; border-top: 1px solid #d8e6db; color: #59705f; font-size: 13px; }
 `;
 
+function linkify(html) {
+  const urlRe = /(https?:\/\/[^\s<]+)/g;
+  let out = html.replace(urlRe, (m) => {
+    let href = m;
+    let trail = '';
+    while (/[.,;:!?)\]»]$/.test(href)) {
+      trail = href.slice(-1) + trail;
+      href = href.slice(0, -1);
+    }
+    return `<a href="${href}" rel="noopener" target="_blank">${href}</a>${trail}`;
+  });
+  out = out.replace(/@EcoHubBY_bot/g, '<a href="https://t.me/EcoHubBY_bot" rel="noopener" target="_blank">@EcoHubBY_bot</a>');
+  return out;
+}
+
 function render(doc) {
   const parts = [];
   parts.push('<!doctype html>');
@@ -38,6 +53,7 @@ function render(doc) {
   parts.push('<body>');
   parts.push(`<h1>${doc.title}</h1>`);
   if (doc.subtitle) parts.push(`<p class="sub">${doc.subtitle}</p>`);
+  if (doc.edition) parts.push(`<p class="note">${doc.edition}</p>`);
 
   for (const sec of doc.sections || []) {
     parts.push(`<h2>${sec.h}</h2>`);
@@ -58,10 +74,10 @@ function render(doc) {
     if (sec.footnote) parts.push(`<p class="note">${sec.footnote}</p>`);
   }
 
-  parts.push('<footer>EcoHub · актуальная редакция опубликована в приложении и на этой странице.</footer>');
+  parts.push(`<footer>EcoHub · актуальная редакция опубликована в приложении и на этой странице.${doc.edition ? ` · ${doc.edition}` : ''}</footer>`);
   parts.push('</body>');
   parts.push('</html>');
-  return parts.join('\n');
+  return linkify(parts.join('\n'));
 }
 
 fs.mkdirSync(publicDir, { recursive: true });

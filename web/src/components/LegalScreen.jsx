@@ -70,6 +70,7 @@ export default function LegalScreen({ docId, onClose, onAgree }) {
           <div className="min-w-0">
             <h3 className="type-title leading-tight truncate">{doc.title}</h3>
             {doc.subtitle && <p className="type-kicker leading-tight">{doc.subtitle}</p>}
+            {doc.edition && <p className="type-kicker leading-tight opacity-70">{doc.edition}</p>}
           </div>
         </div>
       </header>

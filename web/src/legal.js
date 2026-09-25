@@ -4,6 +4,7 @@ export const LEGAL_DOCS = {
     short: 'Правилами сообщества',
     title: 'Правила сообщества EcoHub',
     subtitle: 'Пользовательское соглашение',
+    edition: 'Редакция от 25.09.2026',
     sections: [
       {
         h: '1. Общие положения',
@@ -148,6 +149,7 @@ export const LEGAL_DOCS = {
     short: 'политикой обработки данных',
     title: 'Политика обработки персональных данных',
     subtitle: 'EcoHub',
+    edition: 'Редакция от 25.09.2026',
     sections: [
       {
         h: '1. Общие положения',
