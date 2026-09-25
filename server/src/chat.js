@@ -1,8 +1,8 @@
 import { get, all, run } from './db.js';
 import { findOrCreateUser, displayName, isProfileComplete } from './users.js';
-import { storeItemPhotos } from './storage.js';
 import { pushOpenButtons } from '../../bot/src/createBot.js';
-import { moderateChatMessage } from './trust/pipeline.js';
+import { moderateChatMessage, notifyAdminsOfUserReport } from './trust/pipeline.js';
+import { insertModMessage, insertReport, insertLog } from './trust/store.js';
 
 const CHAT_NOTIFY =
   'У вас есть новые сообщения. Проверьте «Чат» в приложении EcoHub.';
@@ -174,11 +174,21 @@ export async function ensureWantOpeningMessage({ wantId, buyerId }) {
   return true;
 }
 
-export async function sendChatMessage({ wantId, sender, body, photoUrl, bot, webAppUrl }) {
+function _chatRejectionMessage(category) {
+  if (category === 'payment_solicit' || category === 'payment_triggers') {
+    return 'В чате EcoHub запрещены упоминания денег и оплаты.';
+  }
+  if (category === 'drugs') return 'В чате EcoHub запрещены упоминания наркотиков.';
+  if (category === 'weapons') return 'В чате EcoHub запрещены упоминания оружия.';
+  if (category === 'documents') return 'В чате EcoHub запрещены покупка/продажа документов.';
+  if (category === 'phishing_patterns') return 'Сообщение отклонено: обнаружена попытка фишинга.';
+  return 'Сообщение отклонено модерацией. Проверьте текст и попробуйте переформулировать.';
+}
+
+export async function sendChatMessage({ wantId, sender, body, bot, webAppUrl }) {
   const trimmed = String(body || '').trim();
-  const photo = photoUrl ? String(photoUrl) : '';
-  if (!trimmed && !photo) {
-    const err = new Error('Введите сообщение или добавьте фото');
+  if (!trimmed) {
+    const err = new Error('Введите сообщение');
     err.status = 400;
     throw err;
   }
@@ -211,26 +221,25 @@ export async function sendChatMessage({ wantId, sender, body, photoUrl, bot, web
     receiverTg: Number(want.buyer_id) === Number(sender.id) ? want.owner_tg : want.buyer_tg,
     senderName: sender.nickname || sender.first_name || '',
     wantId: want.id,
-    text: trimmed || '',
-    photoUrl: photo || null,
+    text: trimmed,
+    photoUrl: null,
     firstMessage: Boolean(isFirstMessage),
     bot,
   });
 
-  if (modResult.verdict === 'block') {
-    const err = new Error(modResult.category === 'phishing'
-      ? 'Сообщение отклонено: обнаружена попытка фишинга'
-      : 'Сообщение отклонено модерацией. Проверьте текст и попробуйте переформулировать.');
+  // Строгая доставка: любое совпадение словаря (включая medium-категории) → не доставляем.
+  // ИИ-флаг (source='ai') оставляем мягким: сообщение доставляется и уходит в очередь.
+  if (modResult.verdict === 'block' || (modResult.verdict === 'flag' && modResult.source === 'filter')) {
+    const err = new Error(_chatRejectionMessage(modResult.category));
     err.status = 400;
     throw err;
   }
 
   const result = await run(
-    'INSERT INTO chat_messages (want_id, sender_id, body, photo_url) VALUES (?, ?, ?, ?)',
+    'INSERT INTO chat_messages (want_id, sender_id, body) VALUES (?, ?, ?)',
     want.id,
     sender.id,
-    trimmed || '',
-    photo || null,
+    trimmed,
   );
 
   const message = await get(`
@@ -252,7 +261,7 @@ export async function sendChatMessage({ wantId, sender, body, photoUrl, bot, web
   return enrichMessage(message, sender.id, peerLastReadAt(want, sender.id));
 }
 
-export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) {
+export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.get('/api/chat/unread', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
@@ -405,23 +414,15 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) 
   app.post(
     '/api/chat/threads/:wantId/messages',
     authMiddleware,
-    upload ? upload.single('photo') : (_req, _res, next) => next(),
     async (req, res) => {
       try {
         const user = await findOrCreateUser(req.telegramUser);
         if (!requireCompleteProfile(user, res)) return;
 
-        let photoUrl = '';
-        if (req.file) {
-          const urls = await storeItemPhotos([req.file]);
-          photoUrl = urls[0] || '';
-        }
-
         const message = await sendChatMessage({
           wantId: req.params.wantId,
           sender: user,
           body: req.body?.body,
-          photoUrl,
           bot,
           webAppUrl,
         });
@@ -432,6 +433,93 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) 
       }
     },
   );
+
+  app.post('/api/chat/messages/:messageId/report', authMiddleware, async (req, res) => {
+    try {
+      const user = await findOrCreateUser(req.telegramUser);
+      if (!requireCompleteProfile(user, res)) return;
+
+      const msg = await get(`
+        SELECT chat_messages.id,
+               chat_messages.body,
+               chat_messages.photo_url,
+               chat_messages.sender_id,
+               item_wants.id AS want_id,
+               item_wants.buyer_id,
+               items.user_id AS owner_id,
+               owner.telegram_id AS owner_tg,
+               buyer.telegram_id AS buyer_tg,
+               sender.telegram_id AS sender_tg,
+               CASE
+                 WHEN sender.nickname IS NOT NULL AND TRIM(sender.nickname) != '' THEN sender.nickname
+                 WHEN sender.last_name IS NOT NULL AND sender.last_name != ''
+                   THEN TRIM(sender.last_name || ' ' || sender.first_name)
+                 ELSE sender.first_name
+               END AS sender_name
+        FROM chat_messages
+        JOIN item_wants ON item_wants.id = chat_messages.want_id
+        JOIN items ON items.id = item_wants.item_id
+        JOIN users sender ON sender.id = chat_messages.sender_id
+        JOIN users owner ON owner.id = items.user_id
+        JOIN users buyer ON buyer.id = item_wants.buyer_id
+        WHERE chat_messages.id = ? AND chat_messages.deleted_at IS NULL
+      `, req.params.messageId);
+
+      if (!msg) return res.status(404).json({ error: 'Сообщение не найдено' });
+
+      const isParticipant = Number(msg.buyer_id) === Number(user.id)
+        || Number(msg.owner_id) === Number(user.id);
+      if (!isParticipant) {
+        return res.status(403).json({ error: 'Нет доступа к этой переписке' });
+      }
+      if (Number(msg.sender_id) === Number(user.id)) {
+        return res.status(400).json({ error: 'Нельзя пожаловаться на своё сообщение' });
+      }
+
+      const modMsgId = await insertModMessage({
+        senderTelegramId: msg.sender_tg,
+        receiverTelegramId: Number(msg.buyer_id) === Number(user.id) ? msg.owner_tg : msg.buyer_tg,
+        wantId: msg.want_id,
+        text: msg.body || '',
+        censored: msg.body || '',
+        photoUrl: msg.photo_url || null,
+        hasLink: false,
+        status: 'reported',
+        decidedBy: 'user',
+        flagsJson: JSON.stringify(['user_report']),
+        score: 0,
+        level: 'low',
+      });
+
+      const reportId = await insertReport({
+        msgId: modMsgId,
+        senderTelegramId: msg.sender_tg,
+        reporterTelegramId: String(user.telegram_id || user.id),
+        category: 'user_report',
+        source: 'user',
+      });
+
+      await insertLog({
+        event: 'user_report',
+        targetTelegramId: msg.sender_tg,
+        actor: String(user.telegram_id || user.id),
+        messageId: modMsgId,
+        detail: { reportId, wantId: msg.want_id, chatMessageId: msg.id },
+      });
+
+      await notifyAdminsOfUserReport({
+        bot,
+        modMsgId,
+        senderTg: msg.sender_tg,
+        senderName: msg.sender_name || String(msg.sender_tg || ''),
+        body: msg.body ? `«${msg.body}»` : '(фото)',
+      });
+
+      res.status(201).json({ ok: true, report_id: reportId });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
 
   app.post('/api/chat/threads/:wantId/read', authMiddleware, async (req, res) => {
     try {
@@ -472,8 +560,8 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload) 
         firstMessage: false,
         bot,
       });
-      if (modResult.verdict === 'block') {
-        return res.status(400).json({ error: 'Сообщение отклонено модерацией. Проверьте текст и попробуйте переформулировать.' });
+      if (modResult.verdict === 'block' || (modResult.verdict === 'flag' && modResult.source === 'filter')) {
+        return res.status(400).json({ error: _chatRejectionMessage(modResult.category) });
       }
 
       await run(`

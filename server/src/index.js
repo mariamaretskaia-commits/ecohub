@@ -96,7 +96,7 @@ app.use('/uploads', express.static(uploadsDir));
 
 registerUserRoutes(app, authMiddleware);
 registerItemRoutes(app, authMiddleware, upload, bot, optionalAuthMiddleware, webAppUrl);
-registerChatRoutes(app, authMiddleware, bot, webAppUrl, upload);
+registerChatRoutes(app, authMiddleware, bot, webAppUrl);
 registerPointRoutes(app);
 registerSuggestionRoutes(app, bot, optionalAuthMiddleware);
 registerTrustAdminRoutes(app);

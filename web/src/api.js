@@ -207,18 +207,13 @@ export const api = {
   getChatUnread: () => request('/api/chat/unread'),
   getChatThreads: () => request('/api/chat/threads'),
   getChatMessages: (wantId) => request(`/api/chat/threads/${wantId}/messages`),
-  sendChatMessage: (wantId, { body = '', file } = {}) => {
-    if (file) {
-      const formData = new FormData();
-      if (body) formData.append('body', body);
-      formData.append('photo', file, file.name || 'photo.jpg');
-      return uploadItem(`/api/chat/threads/${wantId}/messages`, 'POST', formData);
-    }
-    return request(`/api/chat/threads/${wantId}/messages`, {
+  sendChatMessage: (wantId, body) =>
+    request(`/api/chat/threads/${wantId}/messages`, {
       method: 'POST',
       body: JSON.stringify({ body }),
-    });
-  },
+    }),
+  reportChatMessage: (messageId) =>
+    request(`/api/chat/messages/${messageId}/report`, { method: 'POST' }),
   markChatRead: (wantId) =>
     request(`/api/chat/threads/${wantId}/read`, { method: 'POST' }),
   editChatMessage: (messageId, body) =>

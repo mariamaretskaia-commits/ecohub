@@ -1,9 +1,23 @@
 import { Telegraf, Markup } from 'telegraf';
 import { isDeveloperUser, saveDeveloperChatId, getDeveloperChatId } from '../../server/src/suggestions.js';
 import { get, run } from '../../server/src/db.js';
-import { insertReport, insertBan, countOpenReports } from '../../server/src/trust/store.js';
+import { insertReport, insertBan, countOpenReports, isBanned } from '../../server/src/trust/store.js';
+import { adminBanUser } from '../../server/src/trust/pipeline.js';
 
 const LOUD = { disable_notification: false };
+
+function isTrustAdminTg(id) {
+  const raw = String(process.env.TRUST_ADMIN_IDS || '').trim();
+  if (!raw) return false;
+  return raw.split(',').map((s) => s.trim()).filter(Boolean).includes(String(id));
+}
+
+function isTrustAdminFrom(ctx) {
+  return Boolean(ctx?.from) && (isTrustAdminTg(ctx.from.id) || isDeveloperUser(ctx.from?.username));
+}
+
+const BANNED_NOTE =
+  '⛔ Ваш аккаунт заблокирован в EcoHub. Приложение и бот недоступны.\n\nЕсли вы считаете, что это ошибка, напишите: /support';
 
 export const BOT_COMMANDS = [
   { command: 'start', description: 'Открыть EcoHub' },
@@ -136,6 +150,30 @@ export async function pushOpenButtons(telegram, chatId, webAppUrl, text) {
 
 export function createBot(token, webAppUrl) {
   const bot = new Telegraf(token);
+
+  // Забаненные пользователи: разрешены только /start и /support.
+  bot.use(async (ctx, next) => {
+    try {
+      if (ctx.from?.id) {
+        const banned = await isBanned(String(ctx.from.id));
+        if (banned) {
+          const cmd = String(ctx.message?.text || '').split(/\s/)[0].toLowerCase();
+          if (cmd === '/start' || cmd === '/support') return next();
+          if (ctx.callbackQuery) {
+            await ctx.answerCbQuery('Ваш аккаунт заблокирован в EcoHub.').catch(() => {});
+            return undefined;
+          }
+          if (ctx.message?.text || ctx.message?.photo) {
+            await ctx.reply(BANNED_NOTE, LOUD);
+            return undefined;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[bot] ban check failed:', err.message);
+    }
+    return next();
+  });
 
   const welcomeText = `♻️ EcoHub – приложение, в котором вещи получают вторую жизнь.
 
@@ -271,9 +309,60 @@ export function createBot(token, webAppUrl) {
       const data = String(ctx.callbackQuery?.data || '');
       const [action, idRaw] = data.split(':');
       const msgId = Number(idRaw);
-      if (!msgId || !['report', 'appeal'].includes(action)) {
+      if (!msgId || !['report', 'appeal', 'adban', 'adskip'].includes(action)) {
         return await ctx.answerCbQuery('Неизвестная команда');
       }
+
+      // Предупреждение от админа по жалобе пользователя.
+      if (action === 'adban' || action === 'adskip') {
+        if (!isTrustAdminFrom(ctx)) return await ctx.answerCbQuery('Только для команды EcoHub');
+        const modMsg = await get('SELECT * FROM mod_messages WHERE id = ?', msgId);
+        if (!modMsg) return await ctx.answerCbQuery('Заявка уже обработана');
+        const actor = String(ctx.from?.id || '');
+
+        if (action === 'adban') {
+          await adminBanUser(
+            modMsg.sender_telegram_id,
+            'Пожизненная блокировка: подтверждённая жалоба в чате',
+            'user_report',
+            actor,
+            null,
+          );
+          await run(
+            "UPDATE mod_reports SET status = 'confirmed', resolved_at = datetime('now'), resolved_by = ? WHERE sender_telegram_id = ? AND status = 'open'",
+            actor,
+            String(modMsg.sender_telegram_id || ''),
+          );
+          await run(
+            "INSERT INTO mod_log (event, target_telegram_id, actor, message_id, detail_json) VALUES ('admin_ban_user', ?, 'admin', ?, ?)",
+            String(modMsg.sender_telegram_id || ''),
+            msgId,
+            JSON.stringify({ reason: 'жалоба в чате', by: actor }),
+          );
+          try {
+            await ctx.telegram.sendMessage(
+              modMsg.sender_telegram_id,
+              BANNED_NOTE,
+              LOUD,
+            ).catch(() => {});
+          } catch { /* noop */ }
+          return await ctx.answerCbQuery('Пользователь забанен навсегда (приложение и бот).');
+        }
+
+        await run(
+          "UPDATE mod_reports SET status = 'dismissed', resolved_at = datetime('now'), resolved_by = ? WHERE message_id = ? AND status = 'open'",
+          actor,
+          msgId,
+        );
+        await run(
+          "INSERT INTO mod_log (event, target_telegram_id, actor, message_id, detail_json) VALUES ('admin_dismiss', ?, 'admin', ?, ?)",
+          String(modMsg.sender_telegram_id || ''),
+          msgId,
+          JSON.stringify({ by: actor }),
+        );
+        return await ctx.answerCbQuery('Заявка закрыта без нарушений.');
+      }
+
       const modMsg = await get('SELECT * FROM mod_messages WHERE id = ?', msgId);
       if (!modMsg) return await ctx.answerCbQuery('Сообщение уже удалено');
 

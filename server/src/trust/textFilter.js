@@ -18,10 +18,20 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const VOCAB_PATH = path.join(__dirname, 'data', 'banned_words.json');
 
-const LEET = { 0: 'о', 1: 'л', 3: 'е', 4: 'а', 6: 'б', 7: 'т', 8: 'б' };
+const LEET = { 0: 'о', 1: 'л', 2: 'з', 3: 'е', 4: 'а', 5: 'с', 6: 'б', 7: 'т', 8: 'б' };
 const LOOKALIKE = {
   a: 'а', o: 'о', e: 'е', c: 'с', x: 'х', p: 'р', y: 'у', k: 'к',
   m: 'м', t: 'т', i: 'и', h: 'н', b: 'в',
+  n: 'н', s: 'с', f: 'ф', w: 'в', u: 'у', d: 'д', g: 'г', j: 'й',
+  q: 'к', z: 'з', v: 'в', r: 'р', l: 'л',
+};
+
+// Кириллица → латиница (фонетическая транслитерация для catch латинских форм).
+const CYR_TO_LAT = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z',
+  и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r',
+  с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch',
+  ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
 };
 
 const SEPARATOR_RE = /[^a-zа-яё0-9]+/gu;
@@ -59,6 +69,38 @@ export function _dedup(text) {
   return text.replace(DEDUP_RE, '$1');
 }
 
+/** Переводит только цифры-leet в буквы, остальные символы не трогает. */
+export function _digits(text) {
+  let out = '';
+  for (const ch of String(text)) {
+    out += LEET[ch] !== undefined ? LEET[ch] : ch;
+  }
+  return out;
+}
+
+/** Транслитерация кириллицы в латиницу (латинские символы проходят как есть, в нижнем регистре). */
+export function _rev(text) {
+  let out = '';
+  for (const ch of String(text).toLocaleLowerCase('ru')) {
+    out += CYR_TO_LAT[ch] !== undefined ? CYR_TO_LAT[ch] : ch;
+  }
+  return out;
+}
+
+/** Латиница-холст: цифры-leet → буквы → транслит → без разделителей → без повторов. */
+export function _ltight(text) {
+  return String(text)
+    .toLocaleLowerCase('ru')
+    .replace(/j/g, 'y')
+    .replace(/q/g, 'k')
+    .replace(/w/g, 'v')
+    .replace(/[^a-z0-9]+/gu, '');
+}
+
+export function _latinCanvas(text) {
+  return _dedup(_ltight(_rev(_digits(text))));
+}
+
 export function _isWordChar(ch) {
   return ALT_RE.test(ch);
 }
@@ -80,15 +122,25 @@ function _find(canvas, variant) {
   return null;
 }
 
+function _spaced(text) {
+  return Array.from(String(text)).join(' ');
+}
+
 function _wordVariants(word) {
   const n = _map(word);
   const t = _tight(n);
   const t2 = _squeeze(n);
   const d = _dedup(t);
   const d2 = _dedup(t2);
-  return [
+  const variants = [
     ['n', n], ['t', t], ['t2', t2], ['d', d], ['d2', d2],
+    // spaced-обфускация «р у б л е й» ловится в squeeze-холсте (пробелы сохранены),
+    // даже когда слово окружено другими словами, склеенными в tight-холсте.
+    ['s', _spaced(n)], ['sd', _spaced(_dedup(n))],
   ];
+  const l = _latinCanvas(word);
+  if (l) variants.push(['l', l]);
+  return variants;
 }
 
 function _phraseVariants(phrase) {
@@ -99,7 +151,7 @@ function _phraseVariants(phrase) {
 }
 
 function _sectionType(section) {
-  if (section === 'payment_triggers') return 'fraud';
+  if (section === 'payment_triggers' || section === 'payment_solicit') return 'fraud';
   if (section === 'phishing_patterns') return 'phishing';
   return section; // drugs | weapons | documents
 }
@@ -128,7 +180,8 @@ export function checkText(text) {
   const canvasT2 = _squeeze(canvasN);
   const canvasD = _dedup(canvasT);
   const canvasD2 = _dedup(canvasT2);
-  const canvases = { n: canvasN, t: canvasT, t2: canvasT2, d: canvasD, d2: canvasD2 };
+  const canvasL = _latinCanvas(text);
+  const canvases = { n: canvasN, t: canvasT, t2: canvasT2, d: canvasD, d2: canvasD2, l: canvasL };
 
   const res = new ModerationResult();
   const matched = new Set();
@@ -136,8 +189,10 @@ export function checkText(text) {
   for (const [section, cfg] of Object.entries(vocab)) {
     const sev = cfg.severity || 'low';
     const type = _sectionType(section);
+    // 's'/'sd' (spaced-обфускация) проверяются в squeeze-холсте, где пробелы сохранены.
+    const canvasFor = { n: 'n', t: 't', t2: 't2', d: 'd', d2: 'd2', l: 'l', s: 't2', sd: 't2' };
     const consider = (kind, variant) => {
-      const pos = _find(canvases[kind], variant);
+      const pos = _find(canvases[canvasFor[kind] || kind], variant);
       if (pos === null) return;
       const term = variant;
       if (matched.has(term)) return;

@@ -75,6 +75,40 @@ function _adminNote(senderName, score, level, category, msgId) {
   ].join('\n');
 }
 
+/**
+ * Админ-уведомление о жалобе от пользователя: бот шлёт админам текст
+ * сообщения и кнопки adban:/adskip: на mod_messages.id.
+ */
+export async function notifyAdminsOfUserReport({ bot, modMsgId, senderTg, senderName, body }) {
+  const text = [
+    '🚨 Жалоба от пользователя в чате EcoHub',
+    `Написал(а): ${senderName || String(senderTg || '')}`,
+    `TG id: ${String(senderTg || '')}`,
+    '',
+    String(body || ''),
+    '',
+    `Заявка #${modMsgId}`,
+  ].join('\n');
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '⛔ Забанить навсегда', callback_data: `adban:${modMsgId}` },
+        { text: '✅ Без нарушений', callback_data: `adskip:${modMsgId}` },
+      ],
+    ],
+  };
+  let deliveredTo = 0;
+  for (const adminId of parseAdminIds()) {
+    deliveredTo += (await _sendNote(bot, adminId, text, { reply_markup: keyboard })) ? 1 : 0;
+  }
+  if (!deliveredTo) {
+    const devRow = await get("SELECT value FROM meta WHERE key = 'dev_telegram_chat_id'").catch(() => null);
+    const devChatId = String(process.env.DEVELOPER_TELEGRAM_ID || devRow?.value || '').trim();
+    if (devChatId) await _sendNote(bot, devChatId, text, { reply_markup: keyboard });
+  }
+  return deliveredTo;
+}
+
 function _receiverNote(senderName, category, msgId) {
   return [
     `⚠️ Сообщение от ${senderName} задержано модерацией (${category || 'проверка'}).`,

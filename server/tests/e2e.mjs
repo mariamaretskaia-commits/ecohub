@@ -14,8 +14,9 @@ import {
   adminDismissReport,
   adminBanUser,
   adminUnbanUser,
+  notifyAdminsOfUserReport,
 } from '../src/trust/pipeline.js';
-import { isBanned } from '../src/trust/store.js';
+import { isBanned, insertModMessage, insertReport } from '../src/trust/store.js';
 
 const results = [];
 const check = (name, cond, extra = '') => {
@@ -47,6 +48,45 @@ res = await moderateChatMessage({
   senderTg: '700005', receiverTg: '700006', wantId: 3, text: 'переведи за доставку', firstMessage: false, bot: null,
 });
 check('chat mid-conv fraud flag', res.verdict === 'flag' && res.category === 'payment_triggers', `${res.verdict}/${res.category}`);
+
+// ── строгий словарь: ваш кейс ───────────────────────────────────────
+res = await moderateChatMessage({ senderTg: '700030', receiverTg: '700031', wantId: 30, text: 'хочу вам 10 рублей хотя бы заплатить', bot: null });
+check('chat strict payment block', res.verdict === 'block' && res.category === 'payment_solicit', `${res.verdict}/${res.category}`);
+
+res = await moderateChatMessage({ senderTg: '700032', receiverTg: '700033', wantId: 31, text: 'возьму nаркоooтиKi', bot: null });
+check('chat obfuscated drugs block', res.verdict === 'block' && res.category === 'drugs', `${res.verdict}/${res.category}`);
+
+res = await moderateChatMessage({ senderTg: '700034', receiverTg: '700035', wantId: 32, text: 'перев0d на карту', bot: null });
+check('chat leet+translit block', res.verdict === 'block' && res.category === 'payment_solicit', `${res.verdict}/${res.category}`);
+
+// ── жалоба пользователя → заявка в очереди ──────────────────────────
+const repMsg = await insertModMessage({
+  senderTelegramId: '700040', receiverTelegramId: '700041', wantId: 40,
+  text: 'плачу за доставку', censored: 'плачу за доставку',
+  photoUrl: null, hasLink: false, status: 'reported', decidedBy: 'user',
+  flagsJson: '["user_report"]', score: 0, level: 'low',
+});
+const repId = await insertReport({ msgId: repMsg, senderTelegramId: '700040', reporterTelegramId: '700041', category: 'user_report', source: 'user' });
+check('user report in open queue', (await getAdminQueue({ status: 'open' })).some((r) => r.id === repId));
+
+// лог не нужен для вызова notify без бота: проверяем только персист
+check('user report persisted', Boolean(repId > 0));
+
+// ── пожизненный бан по жалобе (как adban) ───────────────────────────
+await adminBanUser('700040', 'Пожизненная блокировка: подтверждённая жалоба в чате', 'user_report', 'test', null);
+check('permanent ban in effect', await isBanned('700040'));
+const permRow = await get("SELECT * FROM mod_banned WHERE telegram_id = '700040'");
+check('permanent ban has no expiry', permRow && !permRow.expires_at);
+await adminUnbanUser('700040');
+
+// ── пустое уведомление без бота не падает ───────────────────────────
+let notifOk = true;
+try {
+  await notifyAdminsOfUserReport({ bot: null, modMsgId: repMsg, senderTg: '700040', senderName: 'Тест', body: 'плачу за доставку' });
+} catch {
+  notifOk = false;
+}
+check('report notify no-crash without bot', notifOk);
 
 // ── модерация объявления ───────────────────────────────────────────
 let threwBlock = null;

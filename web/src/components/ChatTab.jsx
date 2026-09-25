@@ -4,7 +4,7 @@ import { api } from '../api';
 import { tg } from '../telegram';
 import Sticker from './Sticker';
 import PhotoLightbox from './PhotoLightbox';
-import { fileToJpeg, photoSrc } from '../photos';
+import { photoSrc } from '../photos';
 
 function formatTime(value) {
   if (!value) return '';
@@ -39,6 +39,7 @@ function MessageBubble({
   onCancelEdit,
   onSaveEdit,
   onDelete,
+  onReport,
   savingEdit,
   onOpenPhoto,
 }) {
@@ -154,6 +155,17 @@ function MessageBubble({
             </button>
           </div>
         )}
+        {!mine && !deleted && (
+          <div className="flex gap-2 mt-2">
+            <button
+              type="button"
+              onClick={() => onReport?.(msg)}
+              className="text-[11px] font-extrabold underline underline-offset-2 text-[#b42318]"
+            >
+              Пожаловаться
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -178,15 +190,13 @@ export default function ChatTab({
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editText, setEditText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
-  const [pendingPhoto, setPendingPhoto] = useState(null);
   const [lightbox, setLightbox] = useState(null);
   const [listMode, setListMode] = useState('outgoing');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [photoSourceOpen, setPhotoSourceOpen] = useState(false);
+  const [reportConfirm, setReportConfirm] = useState(null);
+  const [reporting, setReporting] = useState(false);
   const bottomRef = useRef(null);
-  const galleryInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
 
   const loadThreads = useCallback(async () => {
     try {
@@ -239,10 +249,6 @@ export default function ChatTab({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeWantId]);
 
-  useEffect(() => () => {
-    if (pendingPhoto?.preview) URL.revokeObjectURL(pendingPhoto.preview);
-  }, [pendingPhoto]);
-
   const { incomingThreads, outgoingThreads } = useMemo(() => {
     const incoming = [];
     const outgoing = [];
@@ -268,55 +274,14 @@ export default function ChatTab({
     setListMode(role === 'owner' ? 'incoming' : 'outgoing');
   }, [activeWantId, threads, user?.id]);
 
-  const clearPendingPhoto = () => {
-    setPendingPhoto((prev) => {
-      if (prev?.preview) URL.revokeObjectURL(prev.preview);
-      return null;
-    });
-    if (galleryInputRef.current) galleryInputRef.current.value = '';
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
-  };
-
-  const handlePickPhoto = async (e) => {
-    const file = e.target.files?.[0];
-    setPhotoSourceOpen(false);
-    if (!file) return;
-    try {
-      const jpeg = await fileToJpeg(file);
-      const preview = URL.createObjectURL(jpeg);
-      setPendingPhoto((prev) => {
-        if (prev?.preview) URL.revokeObjectURL(prev.preview);
-        return { file: jpeg, preview };
-      });
-    } catch (err) {
-      tg.showAlert(err.message || 'Не удалось добавить фото');
-    } finally {
-      e.target.value = '';
-    }
-  };
-
-  const openCamera = () => {
-    setPhotoSourceOpen(false);
-    requestAnimationFrame(() => cameraInputRef.current?.click());
-  };
-
-  const openGallery = () => {
-    setPhotoSourceOpen(false);
-    requestAnimationFrame(() => galleryInputRef.current?.click());
-  };
-
   const handleSend = async (e) => {
     e.preventDefault();
     const body = text.trim();
-    if ((!body && !pendingPhoto) || sending || !activeWantId || threadMeta?.closed) return;
+    if (!body || sending || !activeWantId || threadMeta?.closed) return;
     setSending(true);
     try {
-      const msg = await api.sendChatMessage(activeWantId, {
-        body,
-        file: pendingPhoto?.file,
-      });
+      const msg = await api.sendChatMessage(activeWantId, body);
       setText('');
-      clearPendingPhoto();
       setMessages((prev) => [...prev, msg]);
       await loadThreads();
     } catch (err) {
@@ -376,6 +341,33 @@ export default function ChatTab({
     setDeleteConfirm(null);
   };
 
+  const handleReportMessage = (msg) => {
+    setReportConfirm({
+      id: msg.id,
+      text: `Пожаловаться на сообщение ${msg.sender_name ? `${msg.sender_name}: ` : ''}${String(msg.body || '').slice(0, 80)}?`,
+    });
+  };
+
+  const cancelReport = () => {
+    if (reporting) return;
+    setReportConfirm(null);
+  };
+
+  const confirmReport = async () => {
+    if (!reportConfirm || reporting) return;
+    setReporting(true);
+    try {
+      await api.reportChatMessage(reportConfirm.id);
+      setReportConfirm(null);
+      tg.showAlert('Жалоба отправлена команде EcoHub. Спасибо, что делаете сервис безопаснее.');
+    } catch (err) {
+      setLoadError(err.message);
+      setReportConfirm(null);
+    } finally {
+      setReporting(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteConfirm || deleting) return;
     setDeleting(true);
@@ -409,9 +401,7 @@ export default function ChatTab({
 
   const closeThread = () => {
     setActiveWantId(null);
-    clearPendingPhoto();
     setLightbox(null);
-    setPhotoSourceOpen(false);
     setThreadMeta(null);
     setMessages([]);
     setEditingMessageId(null);
@@ -463,6 +453,17 @@ export default function ChatTab({
           </button>
         </div>
 
+        <div className="mb-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-center">
+          <p className="text-[11px] font-extrabold text-amber-800 leading-snug">
+            Безопасность: в чате EcoHub запрещены предложения денег, оплаты, наркотиков, оружия и
+            чужих документов. Мошенники часто пишут текст на фото или через символы.
+          </p>
+          <p className="text-[11px] font-bold text-amber-900 mt-1">
+            Видите подозрительное сообщение? Нажмите под ним «Пожаловаться» — команда проверит и
+            заблокирует нарушителя.
+          </p>
+        </div>
+
         {threadMeta?.closed && (
           <p className="type-meta text-center mb-3 px-2">
             Переписка закрыта: автор отметил вещь как отданную.
@@ -493,6 +494,7 @@ export default function ChatTab({
                   onCancelEdit={handleCancelEdit}
                   onSaveEdit={handleSaveEdit}
                   onDelete={handleDeleteMessage}
+                  onReport={handleReportMessage}
                   savingEdit={savingEdit}
                   onOpenPhoto={(url) => setLightbox({ photos: [url], index: 0 })}
                 />
@@ -503,99 +505,24 @@ export default function ChatTab({
         </div>
 
         {!threadMeta?.closed && (
-          <div className="mt-3 space-y-2">
-            {pendingPhoto && (
-              <div className="relative inline-block">
-                <img
-                  src={pendingPhoto.preview}
-                  alt=""
-                  className="h-20 w-20 rounded-2xl object-cover border border-mint-100 shadow-soft"
-                />
-                <button
-                  type="button"
-                  onClick={clearPendingPhoto}
-                  className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full bg-ink text-white text-xs font-black"
-                  aria-label="Убрать фото"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-            <form onSubmit={handleSend} className="flex gap-2 items-end">
-              <input
-                ref={galleryInputRef}
-                type="file"
-                accept="image/*,.heic,.heif"
-                className="hidden"
-                onChange={handlePickPhoto}
-              />
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={handlePickPhoto}
-              />
-              <button
-                type="button"
-                onClick={() => setPhotoSourceOpen(true)}
-                className="btn-secondary px-3 py-3.5 shrink-0 flex items-center justify-center"
-                aria-label="Добавить фото"
-                disabled={sending}
-              >
-                <svg
-                  width="22"
-                  height="22"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  aria-hidden="true"
-                >
-                  <rect
-                    x="2.5"
-                    y="5.5"
-                    width="14"
-                    height="13"
-                    rx="2.2"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    className="text-ink/45"
-                  />
-                  <circle cx="6.8" cy="9.2" r="1.15" fill="currentColor" className="text-ink/40" />
-                  <path
-                    d="M4.2 16.2 L7.4 12.8 L9.6 14.8 L12.4 11.6 L15.8 16.2 Z"
-                    fill="currentColor"
-                    className="text-ink/35"
-                  />
-                  <circle cx="18.6" cy="6.2" r="4" fill="white" />
-                  <path
-                    d="M18.6 4.4 V8 M16.8 6.2 H20.4"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                    className="text-ink/75"
-                  />
-                </svg>
-              </button>
-              <input
-                type="text"
-                value={text}
-                onChange={(ev) => setText(ev.target.value)}
-                placeholder={pendingPhoto ? 'Подпись к фото…' : 'Сообщение…'}
-                maxLength={2000}
-                className="field flex-1"
-                autoComplete="off"
-              />
-              <button
-                type="submit"
-                disabled={sending || (!text.trim() && !pendingPhoto)}
-                className="btn-primary px-4 shrink-0"
-              >
-                {sending ? '…' : '→'}
-              </button>
-            </form>
-          </div>
+          <form onSubmit={handleSend} className="mt-3 flex gap-2 items-end">
+            <input
+              type="text"
+              value={text}
+              onChange={(ev) => setText(ev.target.value)}
+              placeholder="Сообщение…"
+              maxLength={2000}
+              className="field flex-1"
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              disabled={sending || !text.trim()}
+              className="btn-primary px-4 shrink-0"
+            >
+              {sending ? '…' : '→'}
+            </button>
+          </form>
         )}
         {lightbox && (
           <PhotoLightbox
@@ -613,11 +540,12 @@ export default function ChatTab({
           onCancel={cancelDelete}
           onConfirm={confirmDelete}
         />
-        <PhotoSourceSheet
-          open={photoSourceOpen}
-          onClose={() => setPhotoSourceOpen(false)}
-          onCamera={openCamera}
-          onGallery={openGallery}
+        <ReportConfirmDialog
+          open={Boolean(reportConfirm)}
+          text={reportConfirm?.text}
+          busy={reporting}
+          onCancel={cancelReport}
+          onConfirm={confirmReport}
         />
       </div>
     );
@@ -740,30 +668,38 @@ export default function ChatTab({
   );
 }
 
-function PhotoSourceSheet({ open, onClose, onCamera, onGallery }) {
+function ReportConfirmDialog({ open, text, busy, onCancel, onConfirm }) {
   if (!open) return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-[220] flex items-end justify-center bg-black/45 p-4"
+      className="fixed inset-0 z-[220] flex items-center justify-center bg-black/45 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Добавить фото"
-      onClick={onClose}
+      aria-labelledby="report-confirm-title"
+      onClick={onCancel}
     >
       <div
-        className="card w-full max-w-sm p-4 shadow-float"
+        className="card w-full max-w-sm p-5 text-center shadow-float"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="type-title text-center mb-3">Добавить фото</p>
-        <div className="space-y-2">
-          <button type="button" onClick={onCamera} className="btn-primary w-full">
-            Сделать фото
-          </button>
-          <button type="button" onClick={onGallery} className="btn-secondary w-full">
-            Выбрать из галереи
-          </button>
-          <button type="button" onClick={onClose} className="btn-secondary w-full opacity-70">
+        <p id="report-confirm-title" className="type-title">
+          Пожаловаться?
+        </p>
+        {text && <p className="type-body mt-2 break-words">{text}</p>}
+        <p className="type-meta mt-2">
+          Жалоба будет отправлена команде EcoHub. Подозреваемого могут заблокировать навсегда.
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onCancel} disabled={busy} className="btn-secondary w-full">
             Отмена
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="w-full rounded-full bg-[#b42318] px-5 py-2.5 text-sm font-extrabold text-white shadow-soft active:scale-95 transition-transform disabled:opacity-60"
+          >
+            {busy ? 'Отправляем…' : 'Пожаловаться'}
           </button>
         </div>
       </div>

@@ -80,6 +80,80 @@ test('censorText: чистое сообщение – без изменений'
   assert.equal(censored, 'отдам стул в хорошем состоянии');
 });
 
+// ── строгий словарь денег и деобфускация ────────────────────────────
+test('checkText: "хочу вам 10 рублей хотя бы заплатить" → payment_solicit/high', () => {
+  const r = tf.checkText('хочу вам 10 рублей хотя бы заплатить');
+  assert.equal(r.flagged, true);
+  assert.equal(r.type, 'fraud');
+  assert.equal(r.category, 'payment_solicit');
+  assert.equal(r.severity, 'high');
+});
+
+test('checkText: латинская обфускация "nаркоooтиKi" → drugs/high', () => {
+  const r = tf.checkText('возьму nаркоooтиKi');
+  assert.equal(r.flagged, true);
+  assert.equal(r.type, 'drugs');
+  assert.equal(r.severity, 'high');
+});
+
+test('checkText: смесь leet+латиницы "zаплатit" → payment_solicit', () => {
+  const r = tf.checkText('zаплатit 10 рублей');
+  assert.equal(r.flagged, true);
+  assert.equal(r.category, 'payment_solicit');
+  assert.equal(r.severity, 'high');
+});
+
+test('checkText: leet "перев0д" → payment_solicit/high', () => {
+  const r = tf.checkText('сделаю перев0д за вещь');
+  assert.equal(r.flagged, true);
+  assert.equal(r.category, 'payment_solicit');
+  assert.equal(r.severity, 'high');
+});
+
+test('checkText: пробельная обфускация "р у б л е й" → payment_solicit', () => {
+  const r = tf.checkText('дай хоть р у б л е й');
+  assert.equal(r.flagged, true);
+  assert.equal(r.category, 'payment_solicit');
+});
+
+test('checkText: транслит "rublej"/"rubley" → payment_solicit', () => {
+  assert.equal(tf.checkText('rublej').flagged, true);
+  assert.equal(tf.checkText('rubley').category, 'payment_solicit');
+});
+
+test('checkText: транслит "dengi"/"money"/"cash" → payment_solicit', () => {
+  assert.equal(tf.checkText('dengi').category, 'payment_solicit');
+  assert.equal(tf.checkText('money please').category, 'payment_solicit');
+  assert.equal(tf.checkText('za cash').category, 'payment_solicit');
+});
+
+test('checkText: англ. сленг наркотиков weed/spice/salvia → drugs', () => {
+  for (const s of ['weed', 'spice', 'salvia']) {
+    assert.equal(tf.checkText(s).flagged, true, `"${s}" должен ловиться`);
+    assert.equal(tf.checkText(s).type, 'drugs');
+  }
+});
+
+test('checkText: "плачу за доставку" → payment_solicit/high', () => {
+  const r = tf.checkText('плачу за доставку');
+  assert.equal(r.flagged, true);
+  assert.equal(r.category, 'payment_solicit');
+  assert.equal(r.severity, 'high');
+});
+
+test('checkText: негативы не флагаются', () => {
+  for (const s of [
+    'спасибо, возьму бесплатно',
+    'платиновое кольцо',
+    'отдам бесплатно',
+    'плановое обследование',
+    'за фото ничего не нужно',
+    'шерстяной платок в подарок',
+  ]) {
+    assert.equal(tf.checkText(s).flagged, false, `"${s}" не должен флагаться`);
+  }
+});
+
 // ── linkDetector ────────────────────────────────────────────────────
 const ld = await mod('linkDetector.js');
 
