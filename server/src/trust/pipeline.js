@@ -261,7 +261,9 @@ export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, 
 
   // 8. push (best-effort)
   if (verdict !== 'clean' && _canNotify(senderIdStr)) {
-    if (receiverTg) {
+    // Мягкий ИИ-флаг (источник 'ai') — сообщение доставлено, поэтому предупреждаем получателя.
+    // Фильтр-bлок/filter-флаг не доставляются (строгая политика в chat.js) — получателю не шлём.
+    if (receiverTg && verdict === 'flag' && source === 'ai') {
       const name = senderName || senderIdStr;
       await _sendNote(bot, receiverTg, _receiverNote(name, category || filterRes.type || 'проверка', msgId), {
         reply_markup: {
