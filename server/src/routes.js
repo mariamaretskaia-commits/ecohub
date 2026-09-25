@@ -1,4 +1,5 @@
 import { get, all, run } from './db.js';
+import fs from 'fs';
 import { assertCleanListing, ITEM_CATEGORIES, normalizeCategory, RECYCLING_CATEGORIES } from './moderation.js';
 import {
   findOrCreateUser,
@@ -27,6 +28,15 @@ const POINT_OUTPUT_TEXT_FIELDS = [
   'name', 'organization', 'address', 'phone', 'website', 'hours', 'prices',
   'logistics', 'description', 'transit', 'short_address', 'accepts',
 ];
+
+/** Первое фото из multer → data-URI для ИИ-модерации (без сохранения на диск). */
+async function multerToPhotoRef(file) {
+  if (!file) return null;
+  const buf = file.buffer || (file.path ? await fs.promises.readFile(file.path) : null);
+  if (!buf || !buf.length) return null;
+  const mime = String(file.mimetype || 'image/jpeg').split(';')[0] || 'image/jpeg';
+  return `data:${mime};base64,${Buffer.from(buf).toString('base64')}`;
+}
 
 /** Защита на выходе: API пунктов не отдаёт HTML/сущности и скрывает спам-описания. */
 function cleanPointRow(row) {
@@ -376,6 +386,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         senderName: user.nickname || user.first_name || '',
         title,
         description,
+        imageBase64: await multerToPhotoRef(req.files && req.files[0]),
       });
 
       const photos = await storeItemPhotos(req.files);
@@ -443,6 +454,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         senderName: user.nickname || user.first_name || '',
         title,
         description,
+        imageBase64: await multerToPhotoRef(req.files && req.files[0]),
       });
 
       const currentPhotos = parsePhotos(item);

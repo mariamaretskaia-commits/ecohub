@@ -8,7 +8,7 @@
  */
 import { detectLinks, checkLinks, maskLinks } from './linkDetector.js';
 import { checkText, checkMessageForFraud, censorText } from './textFilter.js';
-import { moderateText, moderateImage, aiAvailable } from './ai.js';
+import { moderateContent, photoToAiRef } from '../aiModeration.js';
 import { compute } from './trustScore.js';
 import {
   isBanned,
@@ -156,25 +156,15 @@ export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, 
   });
   const filterRes = _rank(fraud.severity) >= _rank(txt.severity) ? fraud : txt;
 
-  // 4. AI
-  let aiInvoked = false;
-  let aiFlagExtra = [];
+  // 4. AI (Nemotron → OpenAI omni → Zhipu; словарь уже отработал первым слоем)
   const signals = await buildSignals(senderTg, { firstMessage });
   const needAi = !filterRes.flagged && (photoUrl || firstMessage || signals.acct_age_days < 7 || hasLink);
 
-  let aiFlagResult = null;
-  if (needAi && text) {
-    aiInvoked = true;
-    aiFlagResult = await moderateText(text, 1);
-    if (aiFlagResult?.flagged && !aiFlagResult.skipped) aiFlagExtra = aiFlagResult.categories;
+  let ai = null;
+  if (needAi) {
+    ai = await moderateContent({ text: text || '', imageBase64: photoUrl, contentType: 'message' });
   }
-  let aiImgResult = null;
-  if (needAi && photoUrl) {
-    aiInvoked = true;
-    aiImgResult = await moderateImage(photoUrl, 1);
-    if (aiImgResult && !aiImgResult.safe && !aiImgResult.skipped) aiFlagExtra.push(aiImgResult.category || 'image_unsafe');
-  }
-  const aiHit = aiFlagExtra.length > 0 && !filterRes.flagged;
+  const aiFlagExtra = ai ? ai.categories : [];
 
   // 5. trust
   const [score, level] = compute(signals);
@@ -199,23 +189,31 @@ export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, 
     source = filterRes.source;
   }
 
-  if (verdict === 'clean' && aiHit) {
-    verdict = 'flag';
-    requiresManual = true;
-    category = aiFlagExtra[0];
-    source = 'ai';
-    const ct = censorText(text || '');
-    censored = ct.censored;
+  if (verdict === 'clean' && ai) {
+    if (ai.action === 'block') {
+      verdict = 'block';
+      requiresManual = true;
+      category = aiFlagExtra[0] || 'ai';
+      source = 'ai';
+    } else if (ai.action === 'review') {
+      verdict = 'flag';
+      requiresManual = true;
+      category = aiFlagExtra[0] || 'review';
+      source = 'ai';
+      const ct = censorText(text || '');
+      censored = ct.censored;
+    }
   }
 
   if (verdict === 'clean') censored = text;
+  const pendingAiReview = Boolean(ai && ai.available === false && verdict === 'clean');
 
   if (hiddenLinks.length > 0 && censored) {
     const masked = maskLinks(censored, hiddenLinks);
     censored = masked.censored;
   }
 
-  const status = { block: 'blocked', flag: 'flagged', clean: 'clean' }[verdict];
+  const status = pendingAiReview ? 'pending' : ({ block: 'blocked', flag: 'flagged', clean: 'clean' }[verdict]);
 
   // 7. persist
   const msgId = await insertModMessage({
@@ -228,7 +226,9 @@ export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, 
     hasLink,
     status,
     decidedBy: source,
-    flagsJson: JSON.stringify(filterRes.matched || aiFlagExtra),
+    flagsJson: JSON.stringify((Array.isArray(filterRes.matched) && filterRes.matched.length)
+      ? filterRes.matched
+      : (pendingAiReview ? ['ai_unavailable'] : aiFlagExtra)),
     score,
     level,
   });
@@ -240,6 +240,9 @@ export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, 
   if (verdict === 'flag') {
     await insertReport({ msgId, senderTelegramId: senderIdStr, category: category || 'manual', source: source === 'ai' ? 'ai' : 'filter' });
     await insertLog({ event: 'auto_flag', targetTelegramId: senderIdStr, actor: 'system', messageId: msgId, detail: { verdict, type: category, matched: filterRes.matched || aiFlagExtra, source, severity: _finalSeverity(verdict) } });
+  }
+  if (pendingAiReview) {
+    await insertLog({ event: 'ai_pending', targetTelegramId: senderIdStr, actor: 'system', messageId: msgId, detail: { reason: ai && (ai.reasoning || 'ai_unavailable') || 'ai_unavailable' } });
   }
   if (hiddenLinks.length > 0) {
     await insertLog({ event: 'link_hidden', targetTelegramId: senderIdStr, actor: 'system', messageId: msgId, detail: { domains: hiddenLinks.map((l) => l.domain) } });
@@ -293,14 +296,15 @@ export async function moderateChatMessage({ senderTg, receiverTg, wantId, text, 
     }
   }
 
-  return { verdict, severity: _finalSeverity(verdict), category, source, score, level, censored, msgId, requiresManual };
+  return { verdict, severity: _finalSeverity(verdict), category, source, score, level, censored, msgId, requiresManual, pendingAiReview };
 }
 
 /**
- * Модерация объявления (POST/PATCH items).
+ * Модерация объявления (POST/PATCH items). 
+ * imageBase64 - data-URI/база64 первого фото (опционально).
  * Возвращает {ok, verdict, msgId} или бросает err.status=400.
  */
-export async function moderateItem({ senderTg, senderName, title, description }) {
+export async function moderateItem({ senderTg, senderName, title, description, imageBase64 }) {
   const senderIdStr = String(senderTg);
   const text = `${title || ''} ${description || ''}`.trim();
 
@@ -343,7 +347,29 @@ export async function moderateItem({ senderTg, senderName, title, description })
     censored = maskLinks(censored, hiddenLinks).censored;
   }
 
-  const status = { block: 'blocked', flag: 'flagged', clean: 'clean' }[verdict];
+  // ИИ-модерация (Nemotron → OpenAI omni → Zhipu). Словарь выше — первый слой.
+  // Не блокирует дольше AI_MODERATION_BUDGET_MS и при недоступности ИИ
+  // публикует с меткой pending_ai_review.
+  let aires = null;
+  let pendingAiReview = false;
+  if (verdict === 'clean' && text) {
+    aires = await moderateContent({ text, imageBase64, contentType: 'listing' });
+    if (aires.available === false) {
+      pendingAiReview = true;
+    } else if (aires.action === 'block') {
+      verdict = 'block';
+      requiresManual = true;
+      category = aires.categories[0] || 'ai';
+      source = 'ai';
+    } else if (aires.action === 'review') {
+      verdict = 'flag';
+      requiresManual = true;
+      category = aires.categories[0] || 'review';
+      source = 'ai';
+    }
+  }
+
+  const status = pendingAiReview ? 'pending' : ({ block: 'blocked', flag: 'flagged', clean: 'clean' }[verdict]);
 
   const msgId = await insertModMessage({
     senderTelegramId: senderIdStr,
@@ -353,7 +379,9 @@ export async function moderateItem({ senderTg, senderName, title, description })
     hasLink,
     status,
     decidedBy: source,
-    flagsJson: JSON.stringify(filterRes.matched),
+    flagsJson: JSON.stringify((Array.isArray(filterRes.matched) && filterRes.matched.length)
+      ? filterRes.matched
+      : (pendingAiReview ? ['ai_unavailable'] : (aires ? aires.categories : []))),
     score,
     level,
   });
@@ -366,17 +394,22 @@ export async function moderateItem({ senderTg, senderName, title, description })
     await insertReport({ msgId, senderTelegramId: senderIdStr, category: category || 'manual', source });
     await insertLog({ event: 'auto_flag', targetTelegramId: senderIdStr, actor: 'system', messageId: msgId, detail: { verdict, type: category, matched: filterRes.matched, source, severity: _finalSeverity(verdict) } });
   }
+  if (pendingAiReview) {
+    await insertLog({ event: 'ai_pending', targetTelegramId: senderIdStr, actor: 'system', messageId: msgId, detail: { reason: aires && (aires.reasoning || 'ai_unavailable') || 'ai_unavailable' } });
+  }
 
   await updateTrust(senderTg, signals);
   if (verdict !== 'clean') await autoBanIfNeeded(senderIdStr, msgId, category);
 
   if (verdict === 'block') {
-    const err = new Error('Объявление не прошло модерацию. Проверьте текст и попробуйте переформулировать.');
+    const err = new Error(source === 'ai'
+      ? 'Объявление не прошло автоматическую модерацию. Если вы считаете, что это ошибка – напишите /start боту.'
+      : 'Объявление не прошло модерацию. Проверьте текст и попробуйте переформулировать.');
     err.status = 400;
     throw err;
   }
 
-  return { ok: true, verdict, category, score, level, msgId };
+  return { ok: true, verdict, category, score, level, msgId, pendingAiReview };
 }
 
 const ITEM_AUDIT_MAX_PHOTOS = 4;
@@ -404,13 +437,22 @@ export async function auditItemAsync({ senderTg, itemId, title, description, pho
     const text = `${title || ''} ${description || ''}`.trim();
 
     const flags = [];
-    const textRes = await moderateText(text, 0);
-    if (textRes?.flagged && !textRes.skipped) flags.push(...textRes.categories);
-
     const photos = (Array.isArray(photoUrls) ? photoUrls : []).filter(Boolean).slice(0, ITEM_AUDIT_MAX_PHOTOS);
-    for (const url of photos) {
-      const img = await moderateImage(url, 0);
-      if (img && !img.safe && !img.skipped) flags.push(img.category || 'image_unsafe');
+
+    if (photos.length === 0) {
+      const r = await moderateContent({ text, contentType: 'listing' });
+      if (r.available && r.flagged && r.action !== 'pass') {
+        flags.push(...(r.categories.length ? r.categories : ['ai_flag']));
+      }
+    } else {
+      for (const url of photos) {
+        const ref = photoToAiRef(url);
+        const r = await moderateContent({ text, imageBase64: ref, contentType: 'listing' });
+        if (!r.available) continue;
+        if (r.flagged && r.action !== 'pass') {
+          flags.push(...(r.categories.length ? r.categories : ['image_unsafe']));
+        }
+      }
     }
     if (!flags.length) return { ok: true, flagged: false };
 

@@ -17,6 +17,7 @@ import {
   notifyAdminsOfUserReport,
 } from '../src/trust/pipeline.js';
 import { isBanned, insertModMessage, insertReport } from '../src/trust/store.js';
+import { __setFetch } from '../src/aiModeration.js';
 
 const results = [];
 const check = (name, cond, extra = '') => {
@@ -140,6 +141,52 @@ check('banned user rejected (403)', blocked);
 // ── trust score сохраняется ────────────────────────────────────────
 const trustRow = await get("SELECT * FROM mod_trust WHERE telegram_id = '700001'");
 check('trust persisted', Boolean(trustRow && trustRow.level));
+
+// ── ИИ-модерация: недоступна → публикуем с меткой pending ──────────
+res = await moderateItem({ senderTg: '700080', title: 'старый комод из дуба', description: 'самовывоз' });
+check('item dict-clean + AI unavailable → passed', res.verdict === 'clean', res.verdict);
+check('item pendingAiReview метка', Boolean(res.pendingAiReview), String(res.pendingAiReview));
+const pendRow = await get("SELECT * FROM mod_messages WHERE content = 'старый комод из дуба самовывоз' ORDER BY id DESC LIMIT 1");
+check('item mod_message status=pending', Boolean(pendRow && pendRow.status === 'pending'), pendRow?.status);
+check('item flags_json содержит ai_unavailable', Boolean(pendRow && String(pendRow.flags_json).includes('ai_unavailable')), pendRow?.flags_json);
+
+res = await moderateChatMessage({ senderTg: '700081', receiverTg: '700082', wantId: 81, text: 'отдам кресло, выкинуть жалко', firstMessage: true, bot: null });
+check('chat clean + AI pending', res.verdict === 'clean' && res.pendingAiReview === true, `${res.verdict}/${res.pendingAiReview}`);
+
+// ── ИИ-блок через Nemotron (mock fetch) ─────────────────────────────
+process.env.OPENROUTER_API_KEY = 'sk-test-e2e';
+try {
+  __setFetch((url, opts) => {
+    if (String(url).includes('openrouter.ai')) {
+      const bodyText = typeof opts?.body === 'string' ? opts.body : '';
+      const verdict = bodyText.includes('обычное сообщение')
+        ? { flagged: true, categories: ['review'], action: 'review', reasoning: 'e2e mock review' }
+        : { flagged: true, categories: ['drugs'], action: 'block', reasoning: 'e2e mock block' };
+      return Promise.resolve({
+        status: 200,
+        json: () => Promise.resolve({ choices: [{ message: { content: JSON.stringify(verdict) } }] }),
+      });
+    }
+    return Promise.resolve({ status: 401, json: () => Promise.resolve({}) });
+  });
+  let aiBlock = null;
+  try {
+    await moderateItem({ senderTg: '700083', title: 'ничего противозаконного', description: '' });
+  } catch (e) {
+    aiBlock = e;
+  }
+  check('item AI (mock Nemotron) block → 400', Boolean(aiBlock && aiBlock.status === 400), String(aiBlock?.status));
+
+  let aiReview = await moderateChatMessage({ senderTg: '700084', receiverTg: '700085', wantId: 84, text: 'обычное сообщение', firstMessage: true, bot: null });
+  check('chat AI review → flag/requiresManual', aiReview.verdict === 'flag' && Boolean(aiReview.requiresManual), `${aiReview.verdict}/${aiReview.requiresManual}`);
+} finally {
+  delete process.env.OPENROUTER_API_KEY;
+  __setFetch(undefined);
+  await new Promise((r) => setTimeout(r, 20));
+}
+
+res = await moderateChatMessage({ senderTg: '700090', receiverTg: '700091', wantId: 90, text: 'отдам вазу', bot: null });
+check('chat clean after AI reset (no key)', res.verdict === 'clean', res.verdict);
 
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} e2e checks passed`);
