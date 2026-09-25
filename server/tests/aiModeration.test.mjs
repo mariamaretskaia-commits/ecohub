@@ -56,12 +56,12 @@ afterEach(() => {
   restoreEnv();
 });
 
-test('nemotron блокирует обфусцированные наркотики (data=' + 'flag' + ')', async () => {
+test('nemotron блокирует обфусцированные наркотики (категория drugs)', async () => {
   process.env.OPENROUTER_API_KEY = 'sk-test';
   recordFetch((url) => {
     if (String(url).includes('openrouter.ai')) {
       return fakeOk({
-        choices: [{ message: { content: '{"flagged": true, "categories": ["drugs"], "action": "block", "reasoning": "наркотики"}' } }],
+        choices: [{ message: { content: 'User Safety: unsafe\nSafety Categories: drugs' } }],
       });
     }
     return fakeStatus(401);
@@ -73,10 +73,10 @@ test('nemotron блокирует обфусцированные наркоти�
   assert.deepEqual(res.categories, ['drugs']);
 });
 
-test('nemotron пропускает безопасный контент', async () => {
+test('nemotron (классификатор) пропускает безопасный контент', async () => {
   process.env.OPENROUTER_API_KEY = 'sk-test';
   recordFetch(() => fakeOk({
-    choices: [{ message: { content: '{"flagged": false, "categories": [], "action": "pass", "reasoning": ""}' } }],
+    choices: [{ message: { content: 'User Safety: safe' } }],
   }));
   const res = await moderateContent({ text: 'Отдам детский велосипед, в хорошем состоянии', contentType: 'listing' });
   assert.equal(res.provider, 'nemotron');
@@ -84,14 +84,15 @@ test('nemotron пропускает безопасный контент', async 
   assert.equal(res.flagged, false);
 });
 
-test('flag без категорий → action review (консервативно)', async () => {
+test('nemotron unsafe без хард-категории → action review (консервативно)', async () => {
   process.env.OPENROUTER_API_KEY = 'sk-test';
   recordFetch(() => fakeOk({
-    choices: [{ message: { content: '{"flagged": true, "categories": [], "action": "pass", "reasoning": "?"}' } }],
+    choices: [{ message: { content: 'User Safety: unsafe\nSafety Categories: Profanity' } }],
   }));
-  const res = await moderateContent({ text: 'что-то подозрительное', contentType: 'message' });
+  const res = await moderateContent({ text: 'продам %N@RкОТ%к оптом', contentType: 'message' });
   assert.equal(res.flagged, true);
   assert.equal(res.action, 'review');
+  assert.deepEqual(res.categories, ['profanity']);
 });
 
 test('nemotron 401 → fallback на omni-moderation (review)', async () => {
@@ -111,12 +112,12 @@ test('nemotron 401 → fallback на omni-moderation (review)', async () => {
   assert.deepEqual(res.categories, ['sexual']);
 });
 
-test('nemotron невалидный JSON → fallback на omni (pass)', async () => {
+test('nemotron нераспознанный ответ → fallback на omni (pass)', async () => {
   process.env.OPENROUTER_API_KEY = 'sk-test';
   process.env.OPENAI_API_KEY = 'sk-openai';
   recordFetch((url) => {
     if (String(url).includes('openrouter.ai')) {
-      return fakeOk({ choices: [{ message: { content: 'это не json вообще' } }] });
+      return fakeOk({ choices: [{ message: { content: 'бла бла бла ничего похожего на вердикт' } }] });
     }
     return fakeOk({ results: [{ flagged: false, categories: {}, category_scores: {} }] });
   });
@@ -154,7 +155,7 @@ test('картинка передаётся в запрос Nemotron как data
   __setFetch((url, opts) => {
     if (String(url).includes('openrouter.ai')) {
       body = JSON.parse(opts.body);
-      return fakeOk({ choices: [{ message: { content: '{"flagged": false, "categories": [], "action": "pass", "reasoning": ""}' } }] });
+      return fakeOk({ choices: [{ message: { content: 'User Safety: safe' } }] });
     }
     return fakeStatus(401);
   });

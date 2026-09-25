@@ -160,11 +160,11 @@ try {
     if (String(url).includes('openrouter.ai')) {
       const bodyText = typeof opts?.body === 'string' ? opts.body : '';
       const verdict = bodyText.includes('обычное сообщение')
-        ? { flagged: true, categories: ['review'], action: 'review', reasoning: 'e2e mock review' }
-        : { flagged: true, categories: ['drugs'], action: 'block', reasoning: 'e2e mock block' };
+        ? 'User Safety: unsafe\nSafety Categories: Profanity'
+        : 'User Safety: unsafe\nSafety Categories: weapons';
       return Promise.resolve({
         status: 200,
-        json: () => Promise.resolve({ choices: [{ message: { content: JSON.stringify(verdict) } }] }),
+        json: () => Promise.resolve({ choices: [{ message: { content: verdict } }] }),
       });
     }
     return Promise.resolve({ status: 401, json: () => Promise.resolve({}) });

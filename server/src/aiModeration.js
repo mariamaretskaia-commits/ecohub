@@ -2,7 +2,12 @@
  * ИИ-модерация контента EcoHub.
  *
  * Цепочка провайдеров:
- *   1) NVIDIA Nemotron 3.5 Content Safety (OpenRouter, бесплатная модель) — основной;
+ *   1) NVIDIA Nemotron 3.5 Content Safety (OpenRouter, бесплатная модель) — основной.
+ *      Это guard-классификатор: понимает только нативный тикет "User Safety: safe/unsafe".
+ *      Доменные нарушители (наркотики/оружие/документы/оплата) он по-русски не ловит,
+ *      поэтому его verdict работает ТОЛЬКО как флаг ручной проверки (review); hard-блок
+ *      по домену выполняет словарный фильтр первым слоем в pipeline.js. Явно названный
+ *      хард-домен в категориях классификатора всё же блокирует консервативно;
  *   2) OpenAI omni-moderation-latest — резерв (эндпоинт /v1/moderations, текст+картинка);
  *   3) Zhipu GLM (trust/ai.js) — последний ИИ-запасной;
  *   4) недоступны все ИИ → { available:false } → вызывающий код публикует с меткой
@@ -15,7 +20,6 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { parseJsonEnvelope } from './zai.js';
 import { moderateText as zhipuText, moderateImage as zhipuImage } from './trust/ai.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -88,32 +92,100 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const SYSTEM_PROMPT = [
-  'Ты — модератор приложения EcoHub — сервиса безвозмездного обмена вещами в Республике Беларусь.',
-  'Определи, содержит ли контент (объявление, сообщение или изображение) запрещённые товары или попытки обойти модерацию.',
-  '',
-  'Запрещено (block):',
-  '- наркотики и психоактивные вещества (включая жаргон: «гера», «мяу», «соль», «спайс», «шишки», «трава» и т.п.), предложения продажи/передачи, оплата, переводы денег, платёжные данные;',
-  '- оружие, боеприпасы, взрывчатые вещества;',
-  '- поддельные документы;',
-  '- любые коммерческие предложения за деньги в сервисе безвозмездного обмена.',
-  '',
-  'Требует ручной проверки (review):',
-  '- подозрительный или неоднозначный контент, ссылки на внешние ресурсы, оскорбления, спам, массовые рассылки.',
-  '',
-  'Обращай особое внимание на обход модерации:',
-  '- символы вместо букв: «%N@RкОТ%к», «к0к@ин», «S€x€», «н@ркотик» и т.п.;',
-  '- транслит и микс языков: «токСЫЧ», «нарkотики», «drugs», «трава»;',
-  '- эмодзи и визуальные намёки: 🍃 🌿 ❄️ 💉 и т.п.;',
-  '- текст, нанесённый на фотографии.',
-  '',
-  'Ответь ТОЛЬКО валидным JSON без лишнего текста:',
-  '{"flagged": true/false, "categories": ["..."], "action": "block"|"review"|"pass", "reasoning": "краткое объяснение"}',
-  '- block — контент однозначно нарушает правила;',
-  '- review — нужна ручная проверка;',
-  '- pass — контент безопасен.',
-  'Если ничего опасного нет: {"flagged": false, "categories": [], "action": "pass", "reasoning": "..."}',
-].join('\n');
+const SYSTEM_PROMPT = 'Ты — модератор сервиса безвозмездного обмена вещами EcoHub (Республика Беларусь). Проверь контент на запрещённые товары и обход модерации.';
+
+/**
+ * Nemotron 3.5 Content Safety — это guard-классификатор: на системный промпт не реагирует,
+ * возвращает нативный тикет формата:
+ *   "User Safety: safe"                                   → безопасно
+ *   "User Safety: unsafe\nSafety Categories: Profanity"   → нарушение + категории
+ *
+ * Доменные категории (наркотики/оружие/документы/оплата) модель не детектирует, поэтому
+ * классификатор даёт ТОЛЬКО флаг для ручной проверки, а hard-блок остаётся на словаре
+ * (который отрабатывает раньше в pipeline.js). Если модель явно назвала хард-домен —
+ * консервативно блокируем.
+ */
+const CLASSIFIER_CAT_MAP = [
+  // [токен в ответе модели, наше имя категории, hard-домен?]
+  ['narcotic', 'drugs', true],
+  ['drug', 'drugs', true],
+  ['substance', 'drugs', true],
+  ['weapon', 'weapons', true],
+  ['firearm', 'weapons', true],
+  ['ammunition', 'weapons', true],
+  ['explosive', 'weapons', true],
+  ['document', 'documents', true],
+  ['passport', 'documents', true],
+  ['forg', 'documents', true],
+  ['fraud', 'fraud', true],
+  ['scam', 'fraud', true],
+  ['payment', 'payment_solicit', true],
+  ['financial', 'payment_solicit', true],
+  ['money', 'payment_solicit', true],
+  ['phishing', 'phishing', true],
+  ['sex', 'sexual', false],
+  ['explicit', 'sexual', false],
+  ['harass', 'harassment', false],
+  ['hate', 'hate', false],
+  ['violen', 'violence', false],
+  ['profan', 'profanity', false],
+  ['obscen', 'profanity', false],
+  ['pii', 'pii', false],
+  ['personal', 'pii', false],
+  ['identity', 'pii', false],
+  ['illegal', 'illegal', false],
+  ['dangerous', 'dangerous', false],
+  ['undetermined', 'unknown', false],
+  ['unknown', 'unknown', false],
+];
+
+/**
+ * Разбирает нативный ответ guard-классификатора.
+ * Возвращает { flagged, categories(raw), reasoning } либо null (нераспознанный формат).
+ */
+function _parseClassifierVerdict(content) {
+  const text = String(content || '').replace(/\r/g, '').trim();
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  const verdictUnsafe = /\bunsafe\b/.test(lower);
+  const verdictSafe = /\bsafe\b/.test(lower);
+  const cats = [];
+  const re = /\bsafety\s+categor(?:y|ies)\s*:\s*([^\n]+)/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    m[1].split(',').forEach((c) => {
+      const x = c.replace(/[.;…]+$/, '').trim();
+      if (x) cats.push(x);
+    });
+  }
+  if (verdictUnsafe || cats.length > 0) {
+    return { flagged: true, categories: cats, reasoning: text };
+  }
+  if (verdictSafe) {
+    return { flagged: false, categories: [], reasoning: '' };
+  }
+  return null;
+}
+
+/** Приводит категории классификатора к нашим именам; возвращает { categories, hard }. */
+function _normalizeClassifierCategories(rawCats) {
+  const out = [];
+  let hard = false;
+  for (const raw of rawCats) {
+    const r = String(raw || '').trim().toLowerCase();
+    if (!r) continue;
+    let norm = r;
+    for (const [tok, name, isHard] of CLASSIFIER_CAT_MAP) {
+      if (r.includes(tok)) {
+        norm = name;
+        if (isHard) hard = true;
+        break;
+      }
+    }
+    out.push(norm);
+  }
+  return { categories: [...new Set(out)], hard };
+}
 
 /**
  * Готовит ссылку на картинку для ИИ из данных объявления.
@@ -234,10 +306,19 @@ async function _nemotron(text, imageRef, budgetMs, contentType = 'listing') {
     if (r.kind === 'disabled') return { skipped: true, reason: 'auth' };
     if (r.kind !== 'ok') return { skipped: true, reason: r.kind, status: r.status };
     const content = r.data?.choices?.[0]?.message?.content;
-    const parsed = parseJsonEnvelope(content);
-    if (!parsed || typeof parsed !== 'object' || !('flagged' in parsed)) return { skipped: true, reason: 'malformed' };
+    const parsed = _parseClassifierVerdict(content);
+    if (!parsed) return { skipped: true, reason: 'malformed' };
     circuit.reportSuccess();
-    return { skipped: false, parsed };
+    const { categories, hard } = _normalizeClassifierCategories(parsed.categories);
+    return {
+      skipped: false,
+      parsed: {
+        flagged: parsed.flagged,
+        categories,
+        action: parsed.flagged ? (hard ? 'block' : 'review') : 'pass',
+        reasoning: typeof parsed.reasoning === 'string' ? parsed.reasoning : '',
+      },
+    };
   };
 
   const first = await attempt(payload);
