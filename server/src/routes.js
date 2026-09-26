@@ -5,6 +5,7 @@ import {
   findOrCreateUser,
   publicUser,
   isProfileComplete,
+  isTrustAdmin,
   saveProfile,
   acceptLegal,
   attachDevPhone,
@@ -86,7 +87,10 @@ export function registerUserRoutes(app, authMiddleware) {
   app.get('/api/me', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
-      res.json(publicUser(user));
+      res.json({
+        ...publicUser(user),
+        moderator: isTrustAdmin(user.telegram_id),
+      });
     } catch (err) {
       sendError(res, err);
     }
@@ -568,6 +572,8 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
           } catch { /* */ }
         }
       }
+
+      await run('DELETE FROM item_wants WHERE item_id = ?', item.id);
 
       res.json({ success: true });
     } catch (err) {

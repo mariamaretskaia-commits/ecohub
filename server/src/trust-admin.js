@@ -3,6 +3,7 @@
  * Авторизация: заголовок X-Trust-Token (равен TRUST_ADMIN_TOKEN env).
  */
 import { get, all, run } from './db.js';
+import { isTrustAdmin } from './users.js';
 import { thumbDataUrl } from './storage.js';
 import { parseItemPhotos, removeItemWithAssets } from './items.js';
 import { LEGACY_CATEGORY_MAP, ITEM_CATEGORIES } from './moderation.js';
@@ -48,6 +49,58 @@ function verifyToken(req, res, next) {
 
 function sendError(res, err) {
   res.status(err.status || 500).json({ error: err.message || 'Ошибка' });
+}
+
+function moderatorOnly(req, res, next) {
+  if (isTrustAdmin(req.telegramUser?.id)) return next();
+  return res.status(403).json({ error: 'Доступ только для модераторов' });
+}
+
+// Пользовательские admin-эндпоинты для модератора (доступ по аккаунту, без токена).
+export function registerModeratorRoutes(app, authMiddleware) {
+  app.get('/api/moderator/banned', authMiddleware, moderatorOnly, async (req, res) => {
+    try {
+      const rows = await all(`
+        SELECT mb.telegram_id, mb.reason, mb.category, mb.banned_by, mb.created_at, mb.expires_at,
+               u.nickname, u.first_name, u.last_name, u.username
+        FROM mod_banned mb
+        LEFT JOIN users u ON u.telegram_id = mb.telegram_id
+        WHERE mb.expires_at IS NULL OR mb.expires_at > datetime('now')
+        ORDER BY mb.created_at DESC
+      `);
+      res.json({ items: rows });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/moderator/ban', authMiddleware, moderatorOnly, async (req, res) => {
+    try {
+      const { telegram_id, reason, duration_days } = req.body || {};
+      if (!telegram_id) return res.status(400).json({ error: 'telegram_id обязателен' });
+      await adminBanUser(
+        String(telegram_id),
+        String(reason || '').slice(0, 200) || 'Блокировка модератором',
+        'manual',
+        String(req.telegramUser?.id || 'admin'),
+        Number(duration_days) > 0 ? Number(duration_days) : null,
+      );
+      res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/moderator/unban', authMiddleware, moderatorOnly, async (req, res) => {
+    try {
+      const { telegram_id } = req.body || {};
+      if (!telegram_id) return res.status(400).json({ error: 'telegram_id обязателен' });
+      await adminUnbanUser(String(telegram_id));
+      res.json({ ok: true });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
 }
 
 export function registerTrustAdminRoutes(app) {

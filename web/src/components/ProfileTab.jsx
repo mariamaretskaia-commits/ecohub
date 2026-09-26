@@ -352,6 +352,8 @@ export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
           </div>
         )}
       </div>
+
+      {user.moderator && <ModeratorPanel />}
     </div>
   );
 }
@@ -400,6 +402,154 @@ function StatCard({ value, label }) {
     <div className="bg-mint-50 rounded-[1.25rem] p-3 text-center">
       <div className="type-brand">{value}</div>
       <div className="type-meta mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+function ModeratorPanel() {
+  const [banned, setBanned] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [idInput, setIdInput] = useState('');
+  const [reason, setReason] = useState('');
+  const [days, setDays] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const data = await api.getModeratorBanned();
+      setBanned(Array.isArray(data?.items) ? data.items : []);
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось загрузить список блокировок');
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const name = (b) =>
+    b.nickname || [b.first_name, b.last_name].filter(Boolean).join(' ') || '—';
+
+  const formatDate = (v) => {
+    if (!v) return '';
+    return String(v).slice(0, 10);
+  };
+
+  const handleUnban = async (telegramId) => {
+    const confirmed = await tg.showConfirm(`Разблокировать пользователя ${telegramId}?`);
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await api.moderatorUnban(telegramId);
+      tg.showAlert('Пользователь разблокирован.');
+      await load();
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось разблокировать');
+    }
+    setBusy(false);
+  };
+
+  const handleBan = async () => {
+    const tid = String(idInput || '').trim();
+    if (!tid) {
+      tg.showAlert('Введите Telegram ID пользователя.');
+      return;
+    }
+    const daysNum = Number(days);
+    const confirmed = await tg.showConfirm(
+      `Заблокировать пользователя ${tid}${daysNum > 0 ? ` на ${daysNum} дн.` : ' навсегда'}?`,
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await api.moderatorBan(tid, String(reason || '').trim() || 'Блокировка модератором', daysNum > 0 ? daysNum : null);
+      tg.showAlert('Пользователь заблокирован.');
+      setIdInput('');
+      setReason('');
+      setDays('');
+      await load();
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось заблокировать');
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="card p-5 mt-4 border-2 border-red-200">
+      <h3 className="type-title mb-1">Модерация</h3>
+      <p className="type-body mb-3">
+        Блокировка ограничивает публикацию объявлений и сообщений в чатах.
+      </p>
+
+      <div className="space-y-2 mb-3">
+        <input
+          type="text"
+          inputMode="numeric"
+          value={idInput}
+          onChange={(e) => setIdInput(e.target.value)}
+          placeholder="Telegram ID пользователя"
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mint-400"
+        />
+        <input
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Причина (необязательно)"
+          className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mint-400"
+        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            placeholder="Дней (пусто = навсегда)"
+            className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mint-400"
+          />
+          <button
+            type="button"
+            onClick={handleBan}
+            disabled={busy}
+            className="btn-danger shrink-0 px-4 py-2"
+          >
+            Заблокировать
+          </button>
+        </div>
+      </div>
+
+      <h4 className="type-meta uppercase tracking-wide mb-2">Заблокированные</h4>
+      {loading ? (
+        <p className="type-empty">Загрузка...</p>
+      ) : banned.length === 0 ? (
+        <p className="type-empty">Заблокированных нет</p>
+      ) : (
+        <div className="space-y-2 max-h-72 overflow-y-auto">
+          {banned.map((b) => (
+            <div key={b.telegram_id} className="rounded-xl bg-red-50 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="type-title text-sm truncate">{name(b)}</p>
+                  <p className="type-meta truncate">Telegram ID: {b.telegram_id}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUnban(b.telegram_id)}
+                  disabled={busy}
+                  className="shrink-0 rounded-full bg-ink text-white text-xs font-extrabold px-3 py-1.5 active:scale-95 transition-transform"
+                >
+                  Разблокировать
+                </button>
+              </div>
+              {b.reason && <p className="type-meta mt-1 truncate">Причина: {b.reason}</p>}
+              <p className="type-meta">
+                С {formatDate(b.created_at)}
+                {b.expires_at ? ` до ${formatDate(b.expires_at)}` : ' · навсегда'}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

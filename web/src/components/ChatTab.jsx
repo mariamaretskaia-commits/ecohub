@@ -455,20 +455,14 @@ export default function ChatTab({
 
         <div className="mb-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-center">
           <p className="text-[11px] font-extrabold text-amber-800 leading-snug">
-            Безопасность: в чате EcoHub запрещены предложения денег, оплаты, наркотиков, оружия и
-            чужих документов. Мошенники часто пишут текст на фото или через символы.
+            Внимание! В чате EcoHub запрещены предложения денег, оплаты, наркотиков, оружия и
+            чужих документов и т.д.
           </p>
           <p className="text-[11px] font-bold text-amber-900 mt-1">
-            Видите подозрительное сообщение? Нажмите под ним «Пожаловаться» — команда проверит и
-            заблокирует нарушителя.
+            Видите подозрительное сообщение? Нажмите под ним «Пожаловаться» – команда проверит и,
+            если необходимо, заблокирует нарушителя.
           </p>
         </div>
-
-        {threadMeta?.closed && (
-          <p className="type-meta text-center mb-3 px-2">
-            Переписка закрыта: автор отметил вещь как отданную.
-          </p>
-        )}
 
         {loadError && (
           <p className="type-meta text-red-500 text-center mb-2">{loadError}</p>

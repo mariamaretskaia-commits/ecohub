@@ -241,6 +241,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ items, categories, lat, lng, all, settlement, oblast }),
     }),
+  getModeratorBanned: () => request('/api/moderator/banned'),
+  moderatorBan: (telegramId, reason, durationDays) =>
+    request('/api/moderator/ban', {
+      method: 'POST',
+      body: JSON.stringify({
+        telegram_id: telegramId,
+        reason,
+        duration_days: durationDays || null,
+      }),
+    }),
+  moderatorUnban: (telegramId) =>
+    request('/api/moderator/unban', {
+      method: 'POST',
+      body: JSON.stringify({ telegram_id: telegramId }),
+    }),
 };
 
 export const CATEGORIES = [

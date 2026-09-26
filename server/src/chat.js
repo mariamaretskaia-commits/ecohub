@@ -52,7 +52,11 @@ async function getWantAccess(wantId, userId) {
     JOIN users buyer ON buyer.id = item_wants.buyer_id
     WHERE item_wants.id = ?
       AND (item_wants.buyer_id = ? OR items.user_id = ?)
-  `, wantId, userId, userId);
+      AND NOT (
+        (item_wants.hidden_by_owner_at IS NOT NULL AND items.user_id = ?)
+        OR (item_wants.hidden_by_buyer_at IS NOT NULL AND item_wants.buyer_id = ?)
+      )
+  `, wantId, userId, userId, userId, userId);
 }
 
 async function markWantRead(want, userId) {
@@ -275,6 +279,10 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
         WHERE (iw.buyer_id = ? OR items.user_id = ?)
           AND cm.sender_id != ?
           AND cm.deleted_at IS NULL
+          AND NOT (
+            (iw.hidden_by_owner_at IS NOT NULL AND items.user_id = ?)
+            OR (iw.hidden_by_buyer_at IS NOT NULL AND iw.buyer_id = ?)
+          )
           AND cm.created_at > COALESCE(
             CASE
               WHEN iw.buyer_id = ? THEN iw.buyer_last_read_at
@@ -282,7 +290,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
             END,
             '1970-01-01'
           )
-      `, user.id, user.id, user.id, user.id);
+      `, user.id, user.id, user.id, user.id, user.id, user.id);
 
       res.json({ count: Number(row?.count || 0) });
     } catch (err) {
@@ -342,6 +350,10 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
         JOIN users owner ON owner.id = items.user_id
         JOIN users buyer ON buyer.id = item_wants.buyer_id
         WHERE item_wants.buyer_id = ? OR items.user_id = ?
+        AND NOT (
+          (item_wants.hidden_by_owner_at IS NOT NULL AND items.user_id = ?)
+          OR (item_wants.hidden_by_buyer_at IS NOT NULL AND item_wants.buyer_id = ?)
+        )
         ORDER BY COALESCE(
           (SELECT created_at FROM chat_messages
            WHERE want_id = item_wants.id AND deleted_at IS NULL
@@ -349,6 +361,8 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
           item_wants.created_at
         ) DESC
       `,
+      user.id,
+      user.id,
       user.id,
       user.id,
       user.id,
@@ -607,7 +621,9 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
       const want = await getWantAccess(req.params.wantId, user.id);
       if (!want) return res.status(404).json({ error: 'Переписка не найдена' });
 
-      await run('DELETE FROM item_wants WHERE id = ?', want.id);
+      const isBuyer = Number(want.buyer_id) === Number(user.id);
+      const col = isBuyer ? 'hidden_by_buyer_at' : 'hidden_by_owner_at';
+      await run(`UPDATE item_wants SET ${col} = datetime('now') WHERE id = ?`, want.id);
       res.json({ ok: true });
     } catch (err) {
       sendError(res, err);

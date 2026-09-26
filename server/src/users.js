@@ -50,6 +50,16 @@ export function publicUser(user) {
   };
 }
 
+export function isTrustAdmin(telegramId) {
+  const raw = String(process.env.TRUST_ADMIN_IDS || '').trim();
+  if (!raw) return false;
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .includes(String(telegramId));
+}
+
 export async function getUserById(id) {
   return get('SELECT * FROM users WHERE id = ?', id);
 }

@@ -156,6 +156,10 @@ function ensureSqliteSchema(db) {
       item_id INTEGER NOT NULL REFERENCES items(id),
       buyer_id INTEGER NOT NULL REFERENCES users(id),
       created_at TEXT DEFAULT (datetime('now')),
+      owner_last_read_at TEXT,
+      buyer_last_read_at TEXT,
+      hidden_by_owner_at TEXT,
+      hidden_by_buyer_at TEXT,
       UNIQUE(item_id, buyer_id)
     );
     CREATE TABLE IF NOT EXISTS item_favorites (
@@ -278,6 +282,8 @@ function ensureSqliteSchema(db) {
   for (const [col, def] of [
     ['owner_last_read_at', 'TEXT'],
     ['buyer_last_read_at', 'TEXT'],
+    ['hidden_by_owner_at', 'TEXT'],
+    ['hidden_by_buyer_at', 'TEXT'],
   ]) {
     if (!wantCols.includes(col)) db.exec(`ALTER TABLE item_wants ADD COLUMN ${col} ${def}`);
   }
