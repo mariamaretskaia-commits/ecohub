@@ -10,11 +10,13 @@ import { LEGACY_CATEGORY_MAP, ITEM_CATEGORIES } from './moderation.js';
 import { cleanPointField } from './points-text.js';
 import {
   getAdminQueue,
+  getReportsQueue,
   getModLog,
   adminConfirmReport,
   adminDismissReport,
   adminBanUser,
   adminUnbanUser,
+  moderatorBanFromReport,
 } from './trust/pipeline.js';
 
 const BACKFILL_BATCH = 100;
@@ -69,6 +71,46 @@ export function registerModeratorRoutes(app, authMiddleware) {
         ORDER BY mb.created_at DESC
       `);
       res.json({ items: rows });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/moderator/reports', authMiddleware, moderatorOnly, async (req, res) => {
+    try {
+      const items = await getReportsQueue({
+        status: req.query.status || 'open',
+        limit: Math.min(Number(req.query.limit) || 100, 200),
+      });
+      res.json({ items });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/moderator/reports/:id/ban', authMiddleware, moderatorOnly, async (req, res) => {
+    try {
+      const reportId = Number(req.params.id);
+      if (!reportId) return res.status(400).json({ error: 'report_id обязателен' });
+      const { reason, duration_days } = req.body || {};
+      const result = await moderatorBanFromReport(
+        reportId,
+        String(req.telegramUser?.id || 'moderator'),
+        String(reason || ''),
+        Number(duration_days) > 0 ? Number(duration_days) : null,
+      );
+      res.json(result);
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/moderator/reports/:id/dismiss', authMiddleware, moderatorOnly, async (req, res) => {
+    try {
+      const reportId = Number(req.params.id);
+      if (!reportId) return res.status(400).json({ error: 'report_id обязателен' });
+      await adminDismissReport(reportId, String(req.telegramUser?.id || 'moderator'));
+      res.json({ ok: true });
     } catch (err) {
       sendError(res, err);
     }

@@ -256,6 +256,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ telegram_id: telegramId }),
     }),
+  getModeratorReports: () => request('/api/moderator/reports'),
+  moderatorBanFromReport: (reportId, reason, durationDays) =>
+    request(`/api/moderator/reports/${reportId}/ban`, {
+      method: 'POST',
+      body: JSON.stringify({
+        reason,
+        duration_days: durationDays || null,
+      }),
+    }),
+  moderatorDismissReport: (reportId) =>
+    request(`/api/moderator/reports/${reportId}/dismiss`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
 };
 
 export const CATEGORIES = [

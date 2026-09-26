@@ -408,11 +408,15 @@ function StatCard({ value, label }) {
 
 function ModeratorPanel() {
   const [banned, setBanned] = useState([]);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reportsLoading, setReportsLoading] = useState(true);
   const [idInput, setIdInput] = useState('');
   const [reason, setReason] = useState('');
   const [days, setDays] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pendingKey, setPendingKey] = useState(null);
+  const [daysById, setDaysById] = useState({});
 
   const load = async () => {
     try {
@@ -424,12 +428,48 @@ function ModeratorPanel() {
     setLoading(false);
   };
 
+  const loadReports = async () => {
+    try {
+      const data = await api.getModeratorReports();
+      setReports(Array.isArray(data?.items) ? data.items : []);
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось загрузить жалобы');
+    }
+    setReportsLoading(false);
+  };
+
   useEffect(() => {
     load();
+    loadReports();
   }, []);
 
   const name = (b) =>
     b.nickname || [b.first_name, b.last_name].filter(Boolean).join(' ') || '—';
+
+  const reportName = (r) =>
+    r.sender_nickname || [r.sender_first_name, r.sender_last_name].filter(Boolean).join(' ') || '—';
+
+  const reporterName = (r) => {
+    if (r.source === 'user') {
+      return r.reporter_nickname || [r.reporter_first_name, r.reporter_last_name].filter(Boolean).join(' ') || '—';
+    }
+    return r.source === 'ai' ? 'ИИ' : 'Фильтр';
+  };
+
+  const categoryLabel = (r) =>
+    ({
+      drugs: 'Наркотики',
+      weapons: 'Оружие',
+      payment_solicit: 'Деньги / оплата',
+      documents: 'Чужие документы',
+      phishing_patterns: 'Фишинг',
+      fraud: 'Мошенничество',
+      image_unsafe: 'Небезопасное фото',
+      user_report: 'Жалоба пользователя',
+      manual: 'Контент-фильтр',
+      ai_flag: 'ИИ-пометка',
+      other: 'Другое',
+    })[r.category] || r.category || 'Другое';
 
   const formatDate = (v) => {
     if (!v) return '';
@@ -475,6 +515,38 @@ function ModeratorPanel() {
     setBusy(false);
   };
 
+  const handleBanReport = async (reportId) => {
+    const daysNum = Number(daysById[String(reportId)]);
+    const confirmed = await tg.showConfirm(
+      `Заблокировать отправителя этой жалобы${daysNum > 0 ? ` на ${daysNum} дн.` : ' навсегда'}?`,
+    );
+    if (!confirmed) return;
+    setPendingKey(`ban-${reportId}`);
+    try {
+      await api.moderatorBanFromReport(reportId, 'Блокировка модератором по жалобе', daysNum > 0 ? daysNum : null);
+      tg.showAlert('Пользователь заблокирован.');
+      setDaysById((p) => ({ ...p, [String(reportId)]: '' }));
+      await load();
+      await loadReports();
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось заблокировать');
+    }
+    setPendingKey(null);
+  };
+
+  const handleDismissReport = async (reportId) => {
+    const confirmed = await tg.showConfirm('Отклонить эту жалобу?');
+    if (!confirmed) return;
+    setPendingKey(`dismiss-${reportId}`);
+    try {
+      await api.moderatorDismissReport(reportId);
+      await loadReports();
+    } catch (err) {
+      tg.showAlert(err.message || 'Не удалось отклонить жалобу');
+    }
+    setPendingKey(null);
+  };
+
   return (
     <div className="card p-5 mt-4 border-2 border-red-200">
       <h3 className="type-title mb-1">Модерация</h3>
@@ -517,6 +589,68 @@ function ModeratorPanel() {
           </button>
         </div>
       </div>
+
+      <h4 className="type-meta uppercase tracking-wide mb-2">Жалобы ({reports.length})</h4>
+      {reportsLoading ? (
+        <p className="type-empty">Загрузка...</p>
+      ) : reports.length === 0 ? (
+        <p className="type-empty">Новых жалоб нет</p>
+      ) : (
+        <div className="space-y-2 max-h-72 overflow-y-auto mb-3">
+          {reports.map((r) => {
+            const rkey = `ban-${r.id}`;
+            const dkey = `dismiss-${r.id}`;
+            return (
+              <div key={r.id} className="rounded-xl bg-amber-50 px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="type-title text-sm truncate">Жалоба на «{reportName(r)}»</p>
+                    <p className="type-meta truncate">
+                      От {reporterName(r)} · {formatDate(r.created_at)} · {categoryLabel(r)}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-1 rounded-lg bg-white/70 px-2 py-1 text-xs leading-snug">
+                  <span className="font-bold">
+                    {r.entry_type === 'item' ? 'В объявлении' : 'В чате'}
+                    {r.item_title ? `: «${r.item_title}»` : ''}:
+                  </span>{' '}
+                  {r.content || '(без текста)'}
+                  {r.has_link ? ' · была скрытая ссылка' : ''}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={daysById[String(r.id)] || ''}
+                    onChange={(e) =>
+                      setDaysById((p) => ({ ...p, [String(r.id)]: e.target.value }))
+                    }
+                    placeholder="дней (пусто=навсегда)"
+                    className="w-28 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-mint-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleBanReport(r.id)}
+                    disabled={pendingKey === rkey}
+                    className="btn-danger flex-1 px-3 py-1.5 text-xs"
+                  >
+                    {pendingKey === rkey ? 'Блокирую...' : 'Заблокировать'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDismissReport(r.id)}
+                    disabled={pendingKey === dkey}
+                    className="shrink-0 rounded-full bg-white border border-slate-300 text-ink text-xs font-extrabold px-3 py-1.5 active:scale-95 transition-transform"
+                  >
+                    {pendingKey === dkey ? 'Отклоняю...' : 'Отклонить'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <h4 className="type-meta uppercase tracking-wide mb-2">Заблокированные</h4>
       {loading ? (

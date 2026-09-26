@@ -528,6 +528,71 @@ export async function getAdminQueue({ status = 'open', limit = 50 } = {}) {
   );
 }
 
+export async function getReportsQueue({ status = 'open', limit = 50 } = {}) {
+  return all(
+    `SELECT
+       r.id AS id, r.status AS status, r.category AS category, r.source AS source,
+       r.created_at AS created_at, r.resolved_at AS resolved_at,
+       r.sender_telegram_id AS sender_telegram_id,
+       r.reporter_telegram_id AS reporter_telegram_id,
+       m.content AS content, m.censored AS censored, m.has_link AS has_link,
+       m.entry_type AS entry_type, m.want_id AS want_id,
+       sender.nickname AS sender_nickname, sender.first_name AS sender_first_name,
+       sender.last_name AS sender_last_name, sender.username AS sender_username,
+       reporter.nickname AS reporter_nickname, reporter.first_name AS reporter_first_name,
+       reporter.last_name AS reporter_last_name,
+       items.title AS item_title
+     FROM mod_reports r
+     LEFT JOIN mod_messages m ON m.id = r.message_id
+     LEFT JOIN users sender ON sender.telegram_id = r.sender_telegram_id
+     LEFT JOIN users reporter ON reporter.telegram_id = r.reporter_telegram_id
+     LEFT JOIN item_wants iw ON iw.id = m.want_id
+     LEFT JOIN items ON items.id = COALESCE(m.item_id, iw.item_id)
+     WHERE r.status = ?
+     ORDER BY r.created_at DESC
+     LIMIT ?`,
+    status, limit,
+  );
+}
+
+export async function moderatorConfirmSenderReports(senderTelegramId, reportId, actor) {
+  await run(
+    "UPDATE mod_reports SET status = 'confirmed', resolved_at = datetime('now'), resolved_by = ? WHERE sender_telegram_id = ? AND status = 'open'",
+    String(actor || ''),
+    String(senderTelegramId || ''),
+  );
+  await run(
+    "INSERT INTO mod_log (event, target_telegram_id, actor, message_id, detail_json) VALUES ('moderator_confirm', ?, 'moderator', ?, ?)",
+    String(senderTelegramId || ''),
+    Number(reportId) || null,
+    JSON.stringify({ by: actor || '' }),
+  );
+}
+
+export async function moderatorBanFromReport(reportId, actor, reason, durationDays) {
+  const report = await get('SELECT * FROM mod_reports WHERE id = ?', reportId);
+  if (!report) {
+    const err = new Error('Жалоба не найдена');
+    err.status = 404;
+    throw err;
+  }
+  const senderTg = String(report.sender_telegram_id || '').trim();
+  if (!senderTg) {
+    const err = new Error('У жалобы нет отправителя');
+    err.status = 400;
+    throw err;
+  }
+  await adminBanUser(
+    senderTg,
+    String(reason || '').slice(0, 200) || 'Блокировка по жалобе: подтверждённое нарушение',
+    report.category || 'user_report',
+    actor,
+    durationDays,
+  );
+  await moderatorConfirmSenderReports(senderTg, reportId, actor);
+  return { ok: true, telegram_id: senderTg };
+}
+
 export async function getModLog({ targetTelegramId, limit = 100 } = {}) {
   if (targetTelegramId) {
     return all('SELECT * FROM mod_log WHERE target_telegram_id = ? ORDER BY created_at DESC LIMIT ?', String(targetTelegramId), limit);
