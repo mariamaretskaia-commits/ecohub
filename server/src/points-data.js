@@ -320,4 +320,4 @@ export const POINTS = [
 
 POINTS.push(...REGION_POINTS.map(fillGeo));
 
-export const DATA_VERSION = 15;
+export const DATA_VERSION = 16;
