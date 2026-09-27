@@ -138,11 +138,11 @@ export async function runSeed() {
 
 async function assignGrodnoMicrodistricts() {
   const grodno = await all(
-    "SELECT id, lat, lng FROM recycling_points WHERE settlement = 'Гродно' AND lat IS NOT NULL AND lng IS NOT NULL",
+    "SELECT id, lat, lng, address FROM recycling_points WHERE settlement = 'Гродно' AND lat IS NOT NULL AND lng IS NOT NULL",
   );
   let updated = 0;
   for (const r of grodno) {
-    const area = grodnoArea(r.lat, r.lng);
+    const area = grodnoArea(r.lat, r.lng, r.address);
     if (area) {
       await run('UPDATE recycling_points SET district = ? WHERE id = ?', area, r.id);
       updated += 1;

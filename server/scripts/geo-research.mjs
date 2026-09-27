@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { REGION_POINTS } from '../src/points-regions.js';
 import { POINTS } from '../src/points-data.js';
+import { grodnoArea, streetRule } from '../src/grodno-areas.js';
 import { BELARUS } from '../../web/src/locations.js';
 
 const OUT = path.join(tmpdir(), 'ecohub-geo');
@@ -343,33 +344,15 @@ function usableCentroids(settlement, list) {
   return n >= 3 && n * 2 >= list.length;
 }
 
-const GRODNO_OVERRIDE = [
-  { match: ['ткацкая'], district: 'Лососно' },
-  { match: ['скидельское шоссе'], district: 'Понемунь' },
-  { match: ['аульская'], district: 'Понемунь' },
-  { match: ['подольная'], district: 'Центр' },
-  { match: ['ложице'], district: 'Форты' },
-  { match: ['озерское шоссе'], district: 'Победа' },
-  { match: ['озёрское шоссе'], district: 'Победа' },
-];
-
-function grodnoOverride(address) {
-  const a = String(address || '').toLowerCase();
-  for (const row of GRODNO_OVERRIDE) if (row.match.some((m) => a.includes(m))) return row.district;
-  return null;
-}
-
 const out = data.map((r) => {
   const inBig = BIG.has(r.settlement);
   const geoDistrict = r.geo?.assignedDistrict;
   let district = null;
   let flags = [];
   if (inBig) {
-    const grodnoCur = r.settlement === 'Гродно' ? grodnoOverride(r.address) : null;
-    if (grodnoCur) district = grodnoCur;
-    else if (r.settlement === 'Гродно' && CITY_DISTRICT_COORDS.Гродно) {
-      district = nearestCentroid(r.lat, r.lng, r.settlement);
-      flags.push('GRODNO_CENTROID');
+    if (r.settlement === 'Гродно' && r.lat != null && r.lng != null && r.districtList.length) {
+      district = grodnoArea(r.lat, r.lng, r.address);
+      flags.push(r.address && streetRule(r.address) ? 'GRODNO_STREET' : 'GRODNO_CENTROID');
     }
     else if (geoDistrict && r.districtList.includes(geoDistrict)) district = geoDistrict;
     else if (r.districtList.includes(r.district) && r.district) district = r.district;
@@ -505,7 +488,7 @@ function apply(outRows) {
 
   const fd = D('src/points-data.js');
   backup(fd);
-  const dsrc = readFileSync(fd, 'utf8').replace(/export const DATA_VERSION = \d+;/, 'export const DATA_VERSION = 15;');
+  const dsrc = readFileSync(fd, 'utf8').replace(/export const DATA_VERSION = \d+;/, 'export const DATA_VERSION = 17;');
   if (dsrc !== readFileSync(fd, 'utf8')) writeFileSync(fd, dsrc);
 
   console.log(`✓ Применено: target99=${n1} изменений, charity=${n2}, regions(район)=${n3} (бекапы: *.bak)`);

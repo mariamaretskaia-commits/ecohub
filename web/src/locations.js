@@ -62,6 +62,7 @@ export const BELARUS = {
     Красносельский: TOWN,
     Любча: TOWN,
     Россь: TOWN,
+    Озёры: TOWN,
   },
   'Минская область': {
     Борисов: BORISOV_DISTRICTS,
