@@ -117,7 +117,7 @@ export default function ItemCard({
   };
 
   const isOwner = ownerMode
-    || (currentUser && String(item.telegram_id) === String(currentUser.telegram_id));
+    || (currentUser && String(item.user_id) === String(currentUser.id));
   const isGiven = item.status === 'given';
   const inactive = favoriteMode && isGiven;
   const photos = itemPhotos(item);
@@ -321,6 +321,11 @@ export default function ItemCard({
               <span>·</span>
               <span>{item.first_name}</span>
             </>
+          )}
+          {!ownerMode && currentUser?.moderator && item.telegram_id && (
+            <span className="text-xs font-bold text-ink/45 rounded-full bg-ink/5 px-2 py-0.5">
+              TG: {item.telegram_id}
+            </span>
           )}
         </div>
         {inactive && (

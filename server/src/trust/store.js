@@ -27,7 +27,7 @@ export async function buildSignals(senderId, { firstMessage = false, suspiciousF
   const hasUsername = Boolean(username);
 
   const reportsRow = await get(
-    "SELECT COUNT(*) AS total FROM mod_reports WHERE sender_telegram_id = ? AND created_at > datetime('now', '-30 day')",
+    "SELECT COUNT(*) AS total FROM mod_reports WHERE sender_telegram_id = ? AND status != 'dismissed' AND created_at > datetime('now', '-30 day')",
     String(senderId),
   );
   const confirmedRow = await get(

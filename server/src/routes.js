@@ -254,6 +254,17 @@ function forFeedList(row) {
   };
 }
 
+function maskTelegramIds(rows, viewer) {
+  if (!rows) return rows;
+  const isMod = viewer && isTrustAdmin(String(viewer.telegram_id || ''));
+  return (Array.isArray(rows) ? rows : [rows]).map((row) => (isMod ? row : { ...row, telegram_id: null }));
+}
+
+function maskTelegramId(row, viewer) {
+  const isMod = viewer && isTrustAdmin(String(viewer.telegram_id || ''));
+  return isMod ? row : { ...row, telegram_id: null };
+}
+
 export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAuth = authMiddleware, webAppUrl = '') {
   app.get('/api/items', optionalAuth, async (req, res) => {
     try {
@@ -292,7 +303,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
             `${item.title || ''} ${item.description || ''}`.toLocaleLowerCase('ru').includes(needle)
           ));
         }
-        return res.json(rows);
+        return res.json(maskTelegramIds(rows, viewer));
       }
 
       if (mine === '1') {
@@ -342,20 +353,21 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         }));
       }
 
-      res.json(rows);
+      res.json(maskTelegramIds(rows, viewer));
     } catch (err) {
       sendError(res, err);
     }
   });
 
-  app.get('/api/items/:id', async (req, res) => {
+  app.get('/api/items/:id', optionalAuth, async (req, res) => {
     try {
       const item = await get(`
         SELECT items.*, users.username, users.telegram_id, ${ITEM_NAME_SQL}
         FROM items JOIN users ON items.user_id = users.id WHERE items.id = ?
       `, req.params.id);
       if (!item) return res.status(404).json({ error: 'Not found' });
-      res.json(withPhotos(item));
+      const viewer = req.telegramUser ? await findOrCreateUser(req.telegramUser) : null;
+      res.json(maskTelegramId(withPhotos(item), viewer));
     } catch (err) {
       sendError(res, err);
     }

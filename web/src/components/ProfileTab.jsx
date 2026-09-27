@@ -5,6 +5,7 @@ import Sticker from './Sticker';
 import ProfileForm from './ProfileForm';
 import ItemCard from './ItemCard';
 import ItemForm from './ItemForm';
+import { copyText } from '../phone';
 
 export default function ProfileTab({ user, onRefresh, onGoToFeed }) {
   const [leaderboard, setLeaderboard] = useState([]);
@@ -406,6 +407,28 @@ function StatCard({ value, label }) {
   );
 }
 
+function IdBadge({ value }) {
+  if (!value) {
+    return (
+      <span className="type-meta rounded-full bg-ink/5 px-2 py-0.5">ID не найден</span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        copyText(value);
+        tg.showAlert('Telegram ID скопирован');
+      }}
+      className="inline-flex items-center gap-1.5 rounded-full bg-ink/5 px-2.5 py-1 text-xs font-bold text-ink/70 whitespace-nowrap active:scale-95 transition-transform"
+      title="Нажмите, чтобы скопировать"
+    >
+      TG ID: {value}
+      <span className="text-[10px] font-extrabold uppercase opacity-60">копировать</span>
+    </button>
+  );
+}
+
 function ModeratorPanel() {
   const [banned, setBanned] = useState([]);
   const [reports, setReports] = useState([]);
@@ -548,10 +571,11 @@ function ModeratorPanel() {
   };
 
   return (
-    <div className="card p-5 mt-4 border-2 border-red-200">
+    <div className="card p-4 mt-4 border-2 border-red-200 overflow-x-hidden">
       <h3 className="type-title mb-1">Модерация</h3>
       <p className="type-body mb-3">
-        Блокировка ограничивает публикацию объявлений и сообщений в чатах.
+        Блокировка ограничивает публикацию объявлений и сообщений в чатах. TG ID
+        видны только вам — нажмите на ID, чтобы скопировать.
       </p>
 
       <div className="space-y-2 mb-3">
@@ -570,14 +594,14 @@ function ModeratorPanel() {
           placeholder="Причина (необязательно)"
           className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mint-400"
         />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             inputMode="numeric"
             value={days}
             onChange={(e) => setDays(e.target.value)}
             placeholder="Дней (пусто = навсегда)"
-            className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mint-400"
+            className="min-w-0 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-mint-400"
           />
           <button
             type="button"
@@ -601,16 +625,32 @@ function ModeratorPanel() {
             const rkey = `ban-${r.id}`;
             const dkey = `dismiss-${r.id}`;
             return (
-              <div key={r.id} className="rounded-xl bg-amber-50 px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="type-title text-sm truncate">Жалоба на «{reportName(r)}»</p>
-                    <p className="type-meta truncate">
-                      От {reporterName(r)} · {formatDate(r.created_at)} · {categoryLabel(r)}
-                    </p>
+              <div key={r.id} className="rounded-xl bg-amber-50 px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="type-title text-sm leading-snug break-words">
+                    Жалоба на «{reportName(r)}»
+                  </p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-ink/60 whitespace-nowrap">
+                      {categoryLabel(r)}
+                    </span>
+                    <span className="type-meta whitespace-nowrap">{formatDate(r.created_at)}</span>
                   </div>
                 </div>
-                <p className="mt-1 rounded-lg bg-white/70 px-2 py-1 text-xs leading-snug">
+
+                <div className="mt-2 flex flex-col gap-1 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="type-meta min-w-0">Нарушитель:</span>
+                    <IdBadge value={r.sender_telegram_id} />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="type-meta min-w-0">Жалобу прислал:</span>
+                    <span className="type-meta min-w-0">{reporterName(r)}</span>
+                    {r.source === 'user' && <IdBadge value={r.reporter_telegram_id} />}
+                  </div>
+                </div>
+
+                <p className="mt-2 rounded-lg bg-white/70 px-2 py-1 text-xs leading-snug break-words">
                   <span className="font-bold">
                     {r.entry_type === 'item' ? 'В объявлении' : 'В чате'}
                     {r.item_title ? `: «${r.item_title}»` : ''}:
@@ -618,7 +658,7 @@ function ModeratorPanel() {
                   {r.content || '(без текста)'}
                   {r.has_link ? ' · была скрытая ссылка' : ''}
                 </p>
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -627,13 +667,13 @@ function ModeratorPanel() {
                       setDaysById((p) => ({ ...p, [String(r.id)]: e.target.value }))
                     }
                     placeholder="дней (пусто=навсегда)"
-                    className="w-28 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-mint-400"
+                    className="min-w-0 w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-mint-400"
                   />
                   <button
                     type="button"
                     onClick={() => handleBanReport(r.id)}
                     disabled={pendingKey === rkey}
-                    className="btn-danger flex-1 px-3 py-1.5 text-xs"
+                    className="btn-danger flex-1 min-w-[7rem] px-3 py-1.5 text-xs"
                   >
                     {pendingKey === rkey ? 'Блокирую...' : 'Заблокировать'}
                   </button>
@@ -641,7 +681,7 @@ function ModeratorPanel() {
                     type="button"
                     onClick={() => handleDismissReport(r.id)}
                     disabled={pendingKey === dkey}
-                    className="shrink-0 rounded-full bg-white border border-slate-300 text-ink text-xs font-extrabold px-3 py-1.5 active:scale-95 transition-transform"
+                    className="shrink-0 rounded-full bg-white border border-slate-300 text-ink text-xs font-extrabold px-4 py-1.5 active:scale-95 transition-transform"
                   >
                     {pendingKey === dkey ? 'Отклоняю...' : 'Отклонить'}
                   </button>
@@ -660,11 +700,13 @@ function ModeratorPanel() {
       ) : (
         <div className="space-y-2 max-h-72 overflow-y-auto">
           {banned.map((b) => (
-            <div key={b.telegram_id} className="rounded-xl bg-red-50 px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
+            <div key={b.telegram_id} className="rounded-xl bg-red-50 px-3 py-2.5">
+              <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="type-title text-sm truncate">{name(b)}</p>
-                  <p className="type-meta truncate">Telegram ID: {b.telegram_id}</p>
+                  <p className="type-title text-sm leading-snug break-words">{name(b)}</p>
+                  <div className="mt-0.5">
+                    <IdBadge value={b.telegram_id} />
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -675,8 +717,10 @@ function ModeratorPanel() {
                   Разблокировать
                 </button>
               </div>
-              {b.reason && <p className="type-meta mt-1 truncate">Причина: {b.reason}</p>}
-              <p className="type-meta">
+              {b.reason && (
+                <p className="type-meta mt-1 leading-snug break-words">Причина: {b.reason}</p>
+              )}
+              <p className="type-meta mt-0.5">
                 С {formatDate(b.created_at)}
                 {b.expires_at ? ` до ${formatDate(b.expires_at)}` : ' · навсегда'}
               </p>
