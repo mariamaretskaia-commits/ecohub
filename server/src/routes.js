@@ -714,8 +714,8 @@ export function registerPointRoutes(app) {
       let sql = 'SELECT * FROM recycling_points WHERE 1=1';
       const params = [];
       if (type) {
-        sql += ' AND (type = ? OR accepts LIKE ?)';
-        params.push(type, `%${type}%`);
+        sql += ' AND (type = ? OR accepts LIKE ? OR accept_kinds LIKE ?)';
+        params.push(type, `%${type}%`, `%${type}%`);
       }
       const districtList = [district, ...(districts ? String(districts).split(',') : [])].filter(Boolean);
       if (districtList.length === 1) {

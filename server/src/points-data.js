@@ -4,7 +4,7 @@ import { REGION_POINTS } from './points-regions.js';
 export const ZAGOTTORG_PRICES =
   'Макулатура, стеклобой, полимеры, металлы, масла, бытовая техника, стеклотара. Актуальный прайс – на месте и на zagottorg.by';
 
-const ZAGOTTORG_ACCEPTS = 'paper,electronics,metal';
+const ZAGOTTORG_ACCEPTS = 'paper,glass,plastic,electronics,metal,hazardous';
 
 function inferAccessMode(point) {
   if (point.access_mode) return point.access_mode;
@@ -320,4 +320,4 @@ export const POINTS = [
 
 POINTS.push(...REGION_POINTS.map(fillGeo));
 
-export const DATA_VERSION = 17;
+export const DATA_VERSION = 18;

@@ -120,6 +120,27 @@ try {
   OVERRIDES = {};
 }
 
+/** Фразы-отрицания приёма: клауза с ними отбрасывается целиком. */
+const NEGATIVE_CLAUSE = /(не приним|на приним|не осуществ|не производ|не вед(ёт|е)тся|не работает|не собирает|не вывоз|исключ)/i;
+
+/** Разбивает описательный текст на клаузы по предложениям/скобкам/точкам с запятой. */
+function positiveClauses(text) {
+  return String(text || '')
+    .split(/[.;()]+/)
+    .filter((c) => !NEGATIVE_CLAUSE.test(c))
+    .join(' ');
+}
+
+/** Текст без клауз-отрицаний — то, что видит пользователь как реальный перечень. */
+export function positiveText(...fields) {
+  return positiveClauses(fields.join(' '));
+}
+
+/** Виды из произвольного описательного текста (с отбрасыванием отрицаний). */
+export function kindsFromText(...fields) {
+  return matchRules(positiveText(...fields), POINT_RULES);
+}
+
 function norm(s) {
   return String(s || '')
     .toLocaleLowerCase('ru')
@@ -157,7 +178,8 @@ export function kindsForItem(name, category) {
   return [...new Set([...base, ...byName])];
 }
 
-/** Выводит виды приёма пункта из официального текста accepts/type. */
+/** Выводит виды приёма пункта из официального текста accepts/type, а также
+ * prices/description (с отбрасыванием клауз-отрицаний). */
 export function derivePointKinds(point) {
   const key = String(point?.source_key || '');
   const override = key && Array.isArray(OVERRIDES[key])
@@ -178,6 +200,9 @@ export function derivePointKinds(point) {
   }
   const typeKind = TYPE_TO_KIND[norm(point?.type)];
   if (typeKind) out.add(typeKind);
+
+  const text = positiveClauses([point?.prices, point?.description].join(' '));
+  if (text.trim()) matchRules(text, POINT_RULES).forEach((k) => out.add(k));
   return [...out];
 }
 

@@ -47,6 +47,9 @@ async function seedPoints() {
     existing.filter((r) => r.source_key).map((r) => [String(r.source_key).toLowerCase(), r.id])
   );
 
+  // Удаляем записи-сироты без исходного ключа (легаси/тестовый мусор).
+  await run('DELETE FROM recycling_points WHERE source_key IS NULL OR source_key = ?', '');
+
   let inserted = 0;
   for (const raw of POINTS) {
     const p = cleanPoint(raw);
