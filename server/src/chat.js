@@ -3,6 +3,7 @@ import { findOrCreateUser, displayName, isProfileComplete } from './users.js';
 import { pushOpenButtons } from '../../bot/src/createBot.js';
 import { moderateChatMessage, notifyAdminsOfUserReport } from './trust/pipeline.js';
 import { insertModMessage, insertReport, insertLog } from './trust/store.js';
+import { rejectIfBanned } from './ban-gate.js';
 
 const CHAT_NOTIFY =
   'У вас есть новые сообщения. Проверьте «Чат» в приложении EcoHub.';
@@ -269,6 +270,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.get('/api/chat/unread', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!isProfileComplete(user)) return res.json({ count: 0 });
 
       const row = await get(`
@@ -301,6 +303,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.get('/api/chat/threads', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const threads = await all(`
@@ -383,6 +386,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.get('/api/chat/threads/:wantId/messages', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const want = await getWantAccess(req.params.wantId, user.id);
@@ -431,6 +435,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
     async (req, res) => {
       try {
         const user = await findOrCreateUser(req.telegramUser);
+        if (await rejectIfBanned(user, res)) return;
         if (!requireCompleteProfile(user, res)) return;
 
         const message = await sendChatMessage({
@@ -451,6 +456,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.post('/api/chat/messages/:messageId/report', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const msg = await get(`
@@ -538,6 +544,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.post('/api/chat/threads/:wantId/read', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const want = await getWantAccess(req.params.wantId, user.id);
       if (!want) return res.status(404).json({ error: 'Переписка не найдена' });
       await markWantRead(want, user.id);
@@ -550,6 +557,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.patch('/api/chat/messages/:messageId', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const row = await getOwnMessage(req.params.messageId, user.id);
@@ -595,6 +603,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.delete('/api/chat/messages/:messageId', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const row = await getOwnMessage(req.params.messageId, user.id);
@@ -616,6 +625,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
   app.delete('/api/chat/threads/:wantId', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const want = await getWantAccess(req.params.wantId, user.id);

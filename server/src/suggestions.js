@@ -1,5 +1,6 @@
 import { get, run } from './db.js';
 import { findOrCreateUser } from './users.js';
+import { rejectIfBanned } from './ban-gate.js';
 
 const DEVELOPER_USERNAMES = ['maryssiu'];
 
@@ -69,6 +70,7 @@ export function registerSuggestionRoutes(app, bot, auth = (_req, _res, next) => 
       if (contactText.length > 200) return res.status(400).json({ error: 'Контакт слишком длинный' });
 
       const userId = req.telegramUser ? (await findOrCreateUser(req.telegramUser).catch(() => null))?.id ?? null : null;
+      if (await rejectIfBanned(req.telegramUser ? { telegram_id: req.telegramUser.id } : null, res)) return;
       const r = await run(
         "INSERT INTO point_suggestions (type, address, contact, status, user_id) VALUES (?, ?, ?, 'new', ?)",
         access,

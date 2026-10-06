@@ -8,11 +8,14 @@ const TABS = [
   { id: 'info', sticker: 'info', label: 'О проекте' },
 ];
 
-export default function BottomNav({ active, onChange, chatUnread = 0 }) {
+export default function BottomNav({ active, onChange, chatUnread = 0, banned = false }) {
+  const tabs = banned
+    ? TABS.filter((t) => t.id === 'map' || t.id === 'info')
+    : TABS;
   return (
     <nav className="fixed bottom-4 left-0 right-0 z-50 px-3">
-      <div className="max-w-lg mx-auto card px-1.5 py-1.5 grid grid-cols-5 gap-1">
-        {TABS.map((tab) => {
+      <div className={`max-w-lg mx-auto card px-1.5 py-1.5 grid gap-1 ${banned ? 'grid-cols-2' : 'grid-cols-5'}`}>
+        {tabs.map((tab) => {
           const isActive = active === tab.id;
           return (
             <button

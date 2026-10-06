@@ -17,6 +17,8 @@ import {
 import { storeItemPhotos, deleteStoredPhotos, makeItemThumbs } from './storage.js';
 import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem, auditItemAsync } from './trust/pipeline.js';
+import { getBanInfo, BANNED_SQL_RULE } from './trust/store.js';
+import { rejectIfBanned } from './ban-gate.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
 import { planRecyclingRoute, hasPointForItem } from './vision.js';
@@ -90,6 +92,7 @@ export function registerUserRoutes(app, authMiddleware) {
       res.json({
         ...publicUser(user),
         moderator: isTrustAdmin(user.telegram_id),
+        banned: await getBanInfo(user.telegram_id),
       });
     } catch (err) {
       sendError(res, err);
@@ -99,6 +102,7 @@ export function registerUserRoutes(app, authMiddleware) {
   app.patch('/api/me', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const saved = await saveProfile(user.id, req.body, Boolean(req.body.consent));
       res.json(saved);
     } catch (err) {
@@ -109,6 +113,7 @@ export function registerUserRoutes(app, authMiddleware) {
   app.patch('/api/me/nudges', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       res.json(await setNudgesDisabled(user.id, Boolean(req.body?.disabled)));
     } catch (err) {
       sendError(res, err);
@@ -118,6 +123,7 @@ export function registerUserRoutes(app, authMiddleware) {
   app.post('/api/me/consent', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       res.json(await acceptLegal(user.id, req.body, req.telegramUser));
     } catch (err) {
       sendError(res, err);
@@ -273,6 +279,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         SELECT items.*, users.username, users.telegram_id, ${ITEM_NAME_SQL}
         FROM items JOIN users ON items.user_id = users.id
         WHERE users.telegram_id NOT LIKE 'demo_%'
+          AND ${BANNED_SQL_RULE}
       `;
       const params = [];
 
@@ -280,6 +287,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
 
       if (favorites === '1') {
         if (!viewer) return res.status(401).json({ error: 'Unauthorized' });
+        if (await rejectIfBanned(viewer, res)) return;
         sql = `
           SELECT items.*, users.username, users.telegram_id, ${ITEM_NAME_SQL},
                  item_favorites.created_at AS favorited_at
@@ -290,6 +298,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
             AND users.telegram_id NOT LIKE 'demo_%'
             AND items.status IN ('active', 'given')
             AND items.mod_status = 'ok'
+            AND ${BANNED_SQL_RULE}
         `;
         params.push(viewer.id);
         sql += ' ORDER BY item_favorites.created_at DESC';
@@ -308,11 +317,13 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
 
       if (mine === '1') {
         if (!viewer) return res.status(401).json({ error: 'Unauthorized' });
+        if (await rejectIfBanned(viewer, res)) return;
         sql += " AND items.status = 'active' AND items.user_id = ?";
         params.push(viewer.id);
       } else {
         sql += " AND items.status = 'active' AND items.mod_status = 'ok'";
         if (viewer) {
+          if (await rejectIfBanned(viewer, res)) return;
           sql += ' AND items.user_id != ?';
           params.push(viewer.id);
         }
@@ -363,7 +374,9 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
     try {
       const item = await get(`
         SELECT items.*, users.username, users.telegram_id, ${ITEM_NAME_SQL}
-        FROM items JOIN users ON items.user_id = users.id WHERE items.id = ?
+        FROM items JOIN users ON items.user_id = users.id
+        WHERE items.id = ?
+          AND ${BANNED_SQL_RULE}
       `, req.params.id);
       if (!item) return res.status(404).json({ error: 'Not found' });
       const viewer = req.telegramUser ? await findOrCreateUser(req.telegramUser) : null;
@@ -376,6 +389,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
   app.post('/api/items', authMiddleware, upload.array('photos', 5), async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
       const { title, description, district, category: rawCategory, oblast, settlement } = req.body;
 
@@ -447,6 +461,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
   app.patch('/api/items/:id', authMiddleware, upload.array('photos', 5), async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const item = await get('SELECT * FROM items WHERE id = ?', req.params.id);
@@ -532,6 +547,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
   app.delete('/api/items/:id', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const item = await get('SELECT * FROM items WHERE id = ?', req.params.id);
 
       if (!item) return res.status(404).json({ error: 'Объявление не найдено' });
@@ -548,6 +564,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
   app.patch('/api/items/:id/give', authMiddleware, async (req, res) => {
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const item = await get('SELECT * FROM items WHERE id = ?', req.params.id);
 
       if (!item) return res.status(404).json({ error: 'Not found' });
@@ -596,6 +613,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
   app.post('/api/items/:id/want', authMiddleware, async (req, res) => {
     try {
       const buyer = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(buyer, res)) return;
       if (!requireCompleteProfile(buyer, res)) return;
 
       const item = await get(`
@@ -669,6 +687,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
     // Избранное – приватно для пользователя. Владельцу объявления уведомления не отправляем.
     try {
       const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       if (!requireCompleteProfile(user, res)) return;
 
       const item = await get('SELECT * FROM items WHERE id = ?', req.params.id);
@@ -751,6 +770,8 @@ const MAX_CATEGORIZE_NAMES = 30;
 export function registerVisionRoutes(app, authMiddleware, upload) {
   app.post('/api/vision/categorize', authMiddleware, async (req, res) => {
     try {
+      const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const { names } = req.body || {};
       const list = (Array.isArray(names) ? names : [])
         .map((n) => String(n ?? '').trim())
@@ -783,6 +804,8 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
 
   app.post('/api/vision/categorize-fix', authMiddleware, async (req, res) => {
     try {
+      const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const { name, category } = req.body || {};
       const cleanName = String(name ?? '').trim().slice(0, 200);
       const cleanCat = String(category ?? '').trim();
@@ -800,6 +823,8 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
 
   app.post('/api/vision/route', authMiddleware, async (req, res) => {
     try {
+      const user = await findOrCreateUser(req.telegramUser);
+      if (await rejectIfBanned(user, res)) return;
       const { items, categories, lat, lng, all: allPoints, settlement, oblast } = req.body || {};
       const list = Array.isArray(items) && items.length
         ? items

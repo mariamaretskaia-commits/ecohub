@@ -35,6 +35,8 @@ export default function App() {
   const [chatUnread, setChatUnread] = useState(0);
   const [fromZombie, setFromZombie] = useState(false);
 
+  const banned = Boolean(user?.banned?.active);
+
   useEffect(() => {
     document.documentElement.style.height = '100%';
     document.documentElement.style.minHeight = '100vh';
@@ -146,6 +148,7 @@ export default function App() {
 
   useEffect(() => {
     if (!user?.profile_complete) return undefined;
+    if (user?.banned?.active) return undefined;
     const refreshUnread = () => {
       api.getChatUnread()
         .then((data) => setChatUnread(Number(data?.count || 0)))
@@ -154,7 +157,7 @@ export default function App() {
     refreshUnread();
     const t = setInterval(refreshUnread, 20000);
     return () => clearInterval(t);
-  }, [user?.profile_complete, user?.id, tab]);
+  }, [user?.profile_complete, user?.id, tab, user?.banned?.active]);
 
   const scrollPageTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
@@ -164,21 +167,24 @@ export default function App() {
   }, []);
 
   const changeTab = useCallback((nextTab) => {
+    if (banned && nextTab !== 'map' && nextTab !== 'info') return;
     setTab(nextTab);
     requestAnimationFrame(() => {
       scrollPageTop();
       requestAnimationFrame(scrollPageTop);
     });
-  }, [scrollPageTop]);
+  }, [scrollPageTop, banned]);
 
   const openChat = useCallback((wantId) => {
+    if (banned) return;
     if (wantId) setChatWantId(wantId);
     changeTab('chat');
-  }, [changeTab]);
+  }, [changeTab, banned]);
 
   const goToFeed = useCallback(() => {
+    if (banned) return;
     changeTab('feed');
-  }, [changeTab]);
+  }, [changeTab, banned]);
 
   const enterTelegram = useCallback(() => {
     // Prefer the native scheme (works inside Telegram's built-in browser and
@@ -197,6 +203,8 @@ export default function App() {
   const legalPending = Boolean(
     user && user.profile_complete && !(user.terms_rules_at && user.terms_privacy_at),
   );
+
+  const bannedTab = banned && tab !== 'map' && tab !== 'info';
 
   return (
     <div className="relative min-h-screen pb-28 overflow-x-hidden">
@@ -257,6 +265,34 @@ export default function App() {
               </p>
             </div>
           </div>
+        ) : banned ? (
+          bannedTab ? (
+            <div className="px-4 pt-6">
+              <div className="card p-5 text-center">
+                <Sticker name="logo" size={56} className="mx-auto" />
+                <p className="type-title mt-4">Аккаунт заблокирован</p>
+                <p className="type-body mt-2">
+                  Ваш аккаунт временно заблокирован. Доступны только разделы «Карта» и «О проекте».
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <button type="button" className="btn-primary" onClick={() => changeTab('map')}>
+                    Карта
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={() => changeTab('info')}>
+                    О проекте
+                  </button>
+                </div>
+                <p className="type-caption mt-4">
+                  Считаете это ошибкой? Напишите в поддержку — ответим в течение суток.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {tab === 'map' && <MapTab prefilter={mapPrefilter} banned={banned} />}
+              {tab === 'info' && <InfoTab onChangeTab={changeTab} />}
+            </>
+          )
         ) : legalPending ? (
           <LegalGate onDone={refreshUser} />
         ) : (
@@ -269,7 +305,7 @@ export default function App() {
                 onOpenChat={openChat}
               />
             )}
-            {tab === 'map' && <MapTab prefilter={mapPrefilter} />}
+            {tab === 'map' && <MapTab prefilter={mapPrefilter} banned={banned} />}
             {tab === 'chat' && (
               <ChatTab
                 user={user}
@@ -293,7 +329,7 @@ export default function App() {
       </main>
 
       {!loadError && !(loading && !user) && !legalPending && (
-        <BottomNav active={tab} onChange={changeTab} chatUnread={chatUnread} />
+        <BottomNav active={tab} onChange={changeTab} chatUnread={chatUnread} banned={banned} />
       )}
     </div>
   );

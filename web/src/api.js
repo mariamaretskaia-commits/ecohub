@@ -46,6 +46,31 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+const OFFLINE_HINT = 'Не удалось связаться с сервером EcoHub. Проверьте интернет и попробуйте ещё раз.';
+
+/** Технические ошибки сети/таймаута превращает в понятный текст. */
+export function friendlyError(err) {
+  if (!err) return OFFLINE_HINT;
+  const name = err.name || '';
+  const message = String(err.message || '');
+  if (
+    name === 'AbortError' ||
+    name === 'TimeoutError' ||
+    message.includes('aborted') ||
+    message.includes('abort') ||
+    message.includes('Failed to fetch') ||
+    message.includes('NetworkError') ||
+    message.includes('Load failed') ||
+    message.includes('timed out') ||
+    message.includes('status 504') ||
+    message.includes('gateway timeout') ||
+    /timed out after \d+ ms/i.test(message)
+  ) {
+    return OFFLINE_HINT;
+  }
+  return message;
+}
+
 /** Сервер недавно отвечал — пропускаем пробуждение (сессионный флаг, ~30 с свежести). */
 let warmUntil = 0;
 function markWarm() { warmUntil = Date.now() + 30_000; }
@@ -112,6 +137,9 @@ async function request(path, options = {}) {
         lastError = err;
       }
     }
+    if (lastError && (lastError.name === 'AbortError' || lastError.name === 'TimeoutError' || !(lastError?.status))) {
+      lastError = new Error(friendlyError(lastError));
+    }
   }
   throw lastError;
 }
@@ -157,6 +185,9 @@ async function uploadItem(path, method, formData) {
       } catch (err) {
         lastError = err;
       }
+    }
+    if (lastError && (lastError.name === 'AbortError' || lastError.name === 'TimeoutError' || !lastError?.status)) {
+      lastError = new Error(friendlyError(lastError));
     }
   }
   throw lastError;

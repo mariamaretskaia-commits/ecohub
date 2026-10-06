@@ -144,7 +144,7 @@ function MapFly({ loc, focusPoint }) {
   return null;
 }
 
-export default function MapTab({ prefilter = [] }) {
+export default function MapTab({ prefilter = [], banned = false }) {
   const [allPoints, setAllPoints] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [filterTypes, setFilterTypes] = useState(() => (Array.isArray(prefilter) ? [...prefilter] : []));
@@ -287,14 +287,16 @@ export default function MapTab({ prefilter = [] }) {
         />
       </div>
 
-      <div className="px-4 pt-1 pb-1">
-        <p className="type-kicker leading-relaxed mb-1.5">
-          Введите список вещей – поможем разобрать по категориям и покажем ближайшие пункты на карте.
-        </p>
-        <button type="button" onClick={() => setPlannerOpen(true)} className="btn-secondary w-full">
-          Разобрать вещи
-        </button>
-      </div>
+      {!banned && (
+        <div className="px-4 pt-1 pb-1">
+          <p className="type-kicker leading-relaxed mb-1.5">
+            Введите список вещей – поможем разобрать по категориям и покажем ближайшие пункты на карте.
+          </p>
+          <button type="button" onClick={() => setPlannerOpen(true)} className="btn-secondary w-full">
+            Разобрать вещи
+          </button>
+        </div>
+      )}
 
       <div className="px-4 pt-1">
         <p className="type-label">Что хотите сдать?</p>
@@ -505,15 +507,17 @@ export default function MapTab({ prefilter = [] }) {
         )}
       </div>
 
-      <div className="px-4 pt-2 pb-4">
-        <button
-          type="button"
-          onClick={() => setSuggestOpen(true)}
-          className="btn-primary w-full"
-        >
-          Предложить пункт
-        </button>
-      </div>
+      {!banned && (
+        <div className="px-4 pt-2 pb-4">
+          <button
+            type="button"
+            onClick={() => setSuggestOpen(true)}
+            className="btn-primary w-full"
+          >
+            Предложить пункт
+          </button>
+        </div>
+      )}
 
       {suggestOpen && <SuggestPointForm onClose={() => setSuggestOpen(false)} />}
 

@@ -18,6 +18,31 @@ export async function isBanned(telegramId) {
   return Boolean(row);
 }
 
+/** Активный бан пользователя (с учётом expires_at) или null. */
+export async function getBanInfo(telegramId) {
+  if (!telegramId) return null;
+  const row = await get(
+    `SELECT telegram_id, reason, category, banned_by, created_at, expires_at
+     FROM mod_banned
+     WHERE telegram_id = ? AND (expires_at IS NULL OR expires_at > datetime('now'))`,
+    String(telegramId),
+  );
+  if (!row) return null;
+  return {
+    ...row,
+    active: true,
+  };
+}
+
+/** Флаг для SQL-условий: объявления/чаты забаненных скрыты из общего доступа. */
+export const BANNED_SQL_RULE = `
+  NOT EXISTS (
+    SELECT 1 FROM mod_banned mb
+    WHERE mb.telegram_id = users.telegram_id
+      AND (mb.expires_at IS NULL OR mb.expires_at > datetime('now'))
+  )
+`;
+
 export async function buildSignals(senderId, { firstMessage = false, suspiciousFirstMsg = false } = {}) {
   const user = await get('SELECT * FROM users WHERE id = ? OR telegram_id = ?', String(senderId), String(senderId));
   const createdDays = user?.created_at ? Math.max(0, Math.floor((Date.now() - new Date(user.created_at).getTime()) / 86400000)) : 365;
