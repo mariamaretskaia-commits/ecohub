@@ -1,5 +1,6 @@
 import './loadEnv.js';
 import path from 'path';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -17,7 +18,8 @@ import { resolveWebAppUrl } from './env.js';
 import { startUnclaimedCycle } from './nudge.js';
 import { startGrowthLoop } from './catgrow.js';
 import { runSeed } from './seed.js';
-import { cloudStorageEnabled } from './storage.js';
+import { cloudStorageEnabled, thumbDataUrl } from './storage.js';
+import { parseItemPhotos } from './items.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -64,6 +66,65 @@ app.use((_req, res, next) => {
   res.setHeader('X-Frame-Options', 'ALLOWALL');
   next();
 });
+
+// gzip для JSON-ответов: большие ленты/точки хранятся несжатыми, без gzip
+// многие мегабайты тянутся десятки секунд.
+app.use((req, res, next) => {
+  const accept = String(req.headers['accept-encoding'] || '');
+  if (!/\bgzip\b/.test(accept)) return next();
+  const sendJson = res.json.bind(res);
+  res.json = (body) => {
+    const data = Buffer.from(JSON.stringify(body), 'utf8');
+    if (data.length < 512) return sendJson(body);
+    zlib.gzip(data, (err, compressed) => {
+      if (err) return sendJson(body);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Encoding', 'gzip');
+      res.setHeader('Vary', 'Accept-Encoding');
+      res.end(compressed);
+    });
+    return res;
+  };
+  next();
+});
+
+// Фоновый backfill миниатюр для старых объявлений: ленты не должны отдавать
+// полные base64-фото (до ~500KB каждое), только лёгкие превью.
+async function backfillMissingThumbs() {
+  try {
+    const { all, run } = await import('./db.js');
+    const rows = await all(
+      `SELECT id, photos, photo_url FROM items
+       WHERE photo_thumbs IS NULL OR photo_thumbs = ''
+       ORDER BY id LIMIT 200`,
+    );
+    if (!rows.length) return;
+    for (const row of rows) {
+      const urls = parseItemPhotos(row);
+      const thumbs = [];
+      for (const url of urls) {
+        if (!url) { thumbs.push(null); continue; }
+        const src = String(url);
+        let buf = null;
+        if (src.startsWith('data:')) {
+          const comma = src.indexOf(',');
+          if (comma !== -1) buf = Buffer.from(src.slice(comma + 1), 'base64');
+        } else if (/^https?:\/\//.test(src)) {
+          try {
+            const r = await fetch(src, { signal: AbortSignal.timeout(15000) });
+            if (r.ok) buf = Buffer.from(await r.arrayBuffer());
+          } catch { /* skip */ }
+        }
+        const thumb = buf ? await thumbDataUrl(buf) : null;
+        thumbs.push(thumb);
+      }
+      await run('UPDATE items SET photo_thumbs = ? WHERE id = ?', JSON.stringify(thumbs), row.id);
+    }
+    console.log(`[backfill] миниатюры: ${rows.length} объявлений`);
+  } catch (err) {
+    console.warn('[backfill] миниатюры не прошли:', err.message);
+  }
+}
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'ecohub' });
@@ -175,6 +236,10 @@ async function setupTelegram(botInstance, url) {
 
 async function main() {
   await initDb();
+
+  backfillMissingThumbs().catch((err) => {
+    console.warn('[backfill] миниатюры не прошли:', err.message);
+  });
 
   app.listen(PORT, async () => {
     console.log(`♻️ EcoHub API running on http://localhost:${PORT}`);

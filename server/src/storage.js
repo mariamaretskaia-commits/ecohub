@@ -63,12 +63,12 @@ export async function storeItemPhotos(files) {
 
 /**
  * Генерирует JPEG-миниатюру для ленты: центр. кроп под кадр карточки (3:4) и
- * ресайз до ≈1080×1440. ВАЖНО: `quality` у Jimp в шкале 0–100 (не 0–1),
- * поэтому дефолт 84, а не 0.85. Кроп сразу под карточку избавляет от
+ * ресайз до ≈640×853. ВАЖНО: `quality` у Jimp в шкале 0–100 (не 0–1),
+ * поэтому дефолт 74, а не 0.74. Кроп сразу под карточку избавляет от
  * «зума» широких фото на клиенте, поэтому список выглядит чётко.
  * Ошибки не бросает – вернёт null для битого файла.
  */
-export async function thumbDataUrl(buffer, { width = 1080, aspect = 3 / 4, quality = 84 } = {}) {
+export async function thumbDataUrl(buffer, { width = 640, aspect = 3 / 4, quality = 74 } = {}) {
   try {
     if (!buffer || !buffer.length) return null;
     const img = await Jimp.read(buffer);

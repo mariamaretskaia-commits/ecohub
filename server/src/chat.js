@@ -145,6 +145,31 @@ async function notifyRecipient(bot, webAppUrl, want, senderId) {
 
 export const WANT_OPENING_MESSAGE = 'Хочу взять';
 
+function parseThumbs(row) {
+  if (!row) return [];
+  try {
+    const raw = row.photo_thumbs;
+    if (raw) {
+      const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (Array.isArray(list)) return list;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
+}
+
+/** Превью объявления для чата: миниатюра, а не полное base64-фото. */
+function threadPhoto(row) {
+  const thumbs = parseThumbs(row).filter(Boolean);
+  if (thumbs.length) return thumbs[0];
+  try {
+    const photos = row.photos && typeof row.photos === 'string' ? JSON.parse(row.photos) : [];
+    if (Array.isArray(photos) && photos.length) return photos[0];
+  } catch { /* ignore */ }
+  return row.photo_url || null;
+}
+
 export async function ensureWantOpeningMessage({ wantId, buyerId }) {
   const want = await get(`
     SELECT item_wants.*,
@@ -317,6 +342,7 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
           items.status AS item_status,
           items.photo_url,
           items.photos,
+          items.photo_thumbs,
           items.user_id AS owner_id,
           item_wants.buyer_id,
           ${PEER_NAME_SQL},
@@ -374,6 +400,9 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
 
       res.json(threads.map((t) => ({
         ...t,
+        photo_url: threadPhoto(t),
+        photos: undefined,
+        photo_thumbs: undefined,
         unread_count: Number(t.unread_count || 0),
         closed: t.item_status !== 'active',
         role: Number(t.owner_id) === Number(user.id) ? 'owner' : 'buyer',

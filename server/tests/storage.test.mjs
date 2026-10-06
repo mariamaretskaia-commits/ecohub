@@ -30,8 +30,8 @@ test('thumbDataUrl: валидный JPEG 3:4 без апскейла', async ()
   assert.match(out, /^data:image\/jpeg;base64,/);
 
   const img = await Jimp.read(Buffer.from(out.split(',')[1], 'base64'));
-  assert.equal(img.bitmap.width, 1080);
-  assert.equal(img.bitmap.height, 1440);
+  assert.equal(img.bitmap.width, 640);
+  assert.equal(img.bitmap.height, 853);
 });
 
 test('thumbDataUrl: quality в шкале Jimp 0–100 (регрессия 0.85/85)', async () => {
