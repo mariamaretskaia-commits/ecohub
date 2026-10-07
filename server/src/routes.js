@@ -15,6 +15,7 @@ import {
   setNudgesDisabled,
 } from './users.js';
 import { storeItemPhotos, deleteStoredPhotos, makeItemThumbs } from './storage.js';
+import { ensureFeedThumbs } from './feedthumbs.js';
 import { ensureWantOpeningMessage } from './chat.js';
 import { moderateItem, auditItemAsync } from './trust/pipeline.js';
 import { getBanInfo, BANNED_SQL_RULE } from './trust/store.js';
@@ -247,10 +248,10 @@ function parseThumbs(row) {
  * Лёгкое представление объявления для ленты: photo_thumbs предпочитаем полным
  * фото, чтобы список не весил мегабайты base64. Полные фото – только в детале.
  */
-function forFeedList(row) {
+async function forFeedList(row) {
   if (!row) return row;
   const full = withPhotos(row);
-  const thumbs = parseThumbs(row);
+  const thumbs = await ensureFeedThumbs(row);
   const photos = full.photos.map((url, i) => (thumbs[i] || url)).filter(Boolean);
   return {
     ...full,
@@ -302,10 +303,12 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
         `;
         params.push(viewer.id);
         sql += ' ORDER BY item_favorites.created_at DESC';
-        let rows = (await all(sql, ...params)).map((row) => ({
-          ...forFeedList(row),
-          is_favorited: true,
-        }));
+        let rows = await Promise.all(
+          (await all(sql, ...params)).map(async (row) => ({
+            ...(await forFeedList(row)),
+            is_favorited: true,
+          })),
+        );
         const needle = String(q || '').trim().toLocaleLowerCase('ru');
         if (needle) {
           rows = rows.filter((item) => (
@@ -344,7 +347,7 @@ export function registerItemRoutes(app, authMiddleware, upload, bot, optionalAut
       }
 
       sql += ' ORDER BY items.created_at DESC';
-      let rows = (await all(sql, ...params)).map(forFeedList);
+      let rows = await Promise.all((await all(sql, ...params)).map(forFeedList));
       const needle = String(q || '').trim().toLocaleLowerCase('ru');
       if (needle) {
         rows = rows.filter((item) => (

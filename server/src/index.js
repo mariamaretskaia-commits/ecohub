@@ -18,8 +18,8 @@ import { resolveWebAppUrl } from './env.js';
 import { startUnclaimedCycle } from './nudge.js';
 import { startGrowthLoop } from './catgrow.js';
 import { runSeed } from './seed.js';
-import { cloudStorageEnabled, thumbDataUrl } from './storage.js';
-import { parseItemPhotos } from './items.js';
+import { cloudStorageEnabled } from './storage.js';
+import { ensureFeedThumbs } from './feedthumbs.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -89,38 +89,22 @@ app.use((req, res, next) => {
 });
 
 // Фоновый backfill миниатюр для старых объявлений: ленты не должны отдавать
-// полные base64-фото (до ~500KB каждое), только лёгкие превью.
+// полные base64-фото (до ~500KB каждое), только лёгкие превью. Дублирует
+// самовосстановление из feedthumbs.js (там миниатюры генерируются и при отдаче).
 async function backfillMissingThumbs() {
   try {
-    const { all, run } = await import('./db.js');
+    const { all } = await import('./db.js');
     const rows = await all(
       `SELECT id, photos, photo_url FROM items
-       WHERE photo_thumbs IS NULL OR photo_thumbs = ''
        ORDER BY id LIMIT 200`,
     );
     if (!rows.length) return;
+    let done = 0;
     for (const row of rows) {
-      const urls = parseItemPhotos(row);
-      const thumbs = [];
-      for (const url of urls) {
-        if (!url) { thumbs.push(null); continue; }
-        const src = String(url);
-        let buf = null;
-        if (src.startsWith('data:')) {
-          const comma = src.indexOf(',');
-          if (comma !== -1) buf = Buffer.from(src.slice(comma + 1), 'base64');
-        } else if (/^https?:\/\//.test(src)) {
-          try {
-            const r = await fetch(src, { signal: AbortSignal.timeout(15000) });
-            if (r.ok) buf = Buffer.from(await r.arrayBuffer());
-          } catch { /* skip */ }
-        }
-        const thumb = buf ? await thumbDataUrl(buf) : null;
-        thumbs.push(thumb);
-      }
-      await run('UPDATE items SET photo_thumbs = ? WHERE id = ?', JSON.stringify(thumbs), row.id);
+      const before = await ensureFeedThumbs(row);
+      if (before.some((t) => t)) done += 1;
     }
-    console.log(`[backfill] миниатюры: ${rows.length} объявлений`);
+    console.log(`[backfill] миниатюры: проверено ${rows.length}, заполнено ${done}`);
   } catch (err) {
     console.warn('[backfill] миниатюры не прошли:', err.message);
   }

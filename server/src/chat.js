@@ -1,4 +1,5 @@
 import { get, all, run } from './db.js';
+import { ensureFeedThumbs } from './feedthumbs.js';
 import { findOrCreateUser, displayName, isProfileComplete } from './users.js';
 import { pushOpenButtons } from '../../bot/src/createBot.js';
 import { moderateChatMessage, notifyAdminsOfUserReport } from './trust/pipeline.js';
@@ -145,23 +146,9 @@ async function notifyRecipient(bot, webAppUrl, want, senderId) {
 
 export const WANT_OPENING_MESSAGE = 'Хочу взять';
 
-function parseThumbs(row) {
-  if (!row) return [];
-  try {
-    const raw = row.photo_thumbs;
-    if (raw) {
-      const list = typeof raw === 'string' ? JSON.parse(raw) : raw;
-      if (Array.isArray(list)) return list;
-    }
-  } catch {
-    /* ignore */
-  }
-  return [];
-}
-
 /** Превью объявления для чата: миниатюра, а не полное base64-фото. */
-function threadPhoto(row) {
-  const thumbs = parseThumbs(row).filter(Boolean);
+async function threadPhoto(row) {
+  const thumbs = (await ensureFeedThumbs(row)).filter(Boolean);
   if (thumbs.length) return thumbs[0];
   try {
     const photos = row.photos && typeof row.photos === 'string' ? JSON.parse(row.photos) : [];
@@ -398,15 +385,15 @@ export function registerChatRoutes(app, authMiddleware, bot, webAppUrl) {
       user.id,
       user.id);
 
-      res.json(threads.map((t) => ({
+      res.json(await Promise.all(threads.map(async (t) => ({
         ...t,
-        photo_url: threadPhoto(t),
+        photo_url: await threadPhoto(t),
         photos: undefined,
         photo_thumbs: undefined,
         unread_count: Number(t.unread_count || 0),
         closed: t.item_status !== 'active',
         role: Number(t.owner_id) === Number(user.id) ? 'owner' : 'buyer',
-      })));
+      }))));
     } catch (err) {
       sendError(res, err);
     }
