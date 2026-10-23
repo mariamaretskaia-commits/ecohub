@@ -8,6 +8,7 @@ import { thumbDataUrl } from './storage.js';
 import { parseItemPhotos, removeItemWithAssets } from './items.js';
 import { LEGACY_CATEGORY_MAP, ITEM_CATEGORIES } from './moderation.js';
 import { cleanPointField } from './points-text.js';
+import { ensureShowcaseItems } from './showcase.js';
 import {
   getAdminQueue,
   getReportsQueue,
@@ -242,6 +243,17 @@ export function registerTrustAdminRoutes(app) {
         banned: banned || null,
         logs,
       });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  // Демо-объявления для витрины: без параметров — создать/обновить, { reset: true } — удалить
+  app.post('/api/trust/admin/showcase-items', verifyToken, async (req, res) => {
+    try {
+      const reset = req.body?.reset === true || req.body?.reset === 1;
+      const result = await ensureShowcaseItems({ reset });
+      res.json({ ok: true, ...result });
     } catch (err) {
       sendError(res, err);
     }
