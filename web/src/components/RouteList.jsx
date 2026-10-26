@@ -14,15 +14,35 @@ const SCOPE_NOTES = {
 export default function RouteList({ route, onSelectPoint }) {
   if (!route) return null;
   const routes = Array.isArray(route.routes) ? route.routes : [];
+  const blocked = Array.isArray(route.blocked) ? route.blocked : [];
   const uncovered = Array.isArray(route.uncovered) ? route.uncovered : [];
+  const uncoveredItems = Array.isArray(route.uncoveredItems) ? route.uncoveredItems : [];
+  const uncoveredNames = [...new Set(
+    uncoveredItems.map((i) => i.name || i.category).filter(Boolean),
+  )];
 
-  const scopeNote = route.all ? SCOPE_NOTES[route.scope] : null;
+  const scopeNote = route.all && routes.length > 0 ? SCOPE_NOTES[route.scope] : null;
 
   return (
     <div className="space-y-3">
       <p className="type-label">Маршрут сдачи</p>
       {scopeNote && <p className="type-empty">{scopeNote}</p>}
-      {routes.length === 0 && (
+      {blocked.length > 0 && (
+        <div className="card p-4 border border-red-100 bg-red-50">
+          <p className="type-label">Нельзя сдать в переработку</p>
+          <div className="mt-2 space-y-2">
+            {blocked.map((b, i) => (
+              <div key={`${b.name || b.category}-${i}`}>
+                <p className="type-title">{b.name || b.category}</p>
+                <p className="type-kicker leading-relaxed">
+                  {[b.reason, b.advice].filter(Boolean).join(' ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {routes.length === 0 && blocked.length === 0 && uncovered.length === 0 && (
         <p className="type-empty">Пункт не найден для этих вещей. Можно попробовать поискать отдельно.</p>
       )}
       {routes.map((r) => {
@@ -66,9 +86,12 @@ export default function RouteList({ route, onSelectPoint }) {
           {route.truncated ? ` · показаны первые ${routes.length}` : ''}
         </p>
       )}
-      {uncovered.length > 0 && (
+      {(uncoveredNames.length > 0 || uncovered.length > 0) && (
         <p className="type-empty">
-          Пункт не найден для: {uncovered.join(', ')}. Можно попробовать поискать отдельно.
+          {uncoveredNames.length > 0
+            ? `Нет подходящего пункта для: ${uncoveredNames.join(', ')}.`
+            : `Пункт не найден для: ${uncovered.join(', ')}.`}
+          {' '}Можно попробовать поискать отдельно.
         </p>
       )}
     </div>

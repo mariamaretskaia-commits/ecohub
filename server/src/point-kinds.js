@@ -12,16 +12,31 @@
  * (по source_key). Итоговые виды хранятся в колонке recycling_points.accept_kinds.
  */
 import fs from 'fs';
+import { recyclingRuleFor } from './recycling-rules.js';
 
 export const KINDS = [
   'paper', 'glass', 'plastic', 'electronics', 'metal', 'hazardous',
   'textile', 'hygiene', 'cosmetics', 'jewelry', 'health',
-  'household', 'furniture', 'books', 'toys', 'food',
+  'household', 'furniture', 'books', 'toys', 'kids', 'food',
   'sports', 'garden', 'pet', 'auto',
 ];
 
 /** Смешанные категории: вид определяется по названию вещи, а не по категории. */
 const MIXED_CATEGORIES = new Set(['Красота и здоровье']);
+
+/**
+ * Широкие категории: если название явно говорит о материале, не разбавляем
+ * его остальными видами категории. Иначе «кастрюля» могла уйти в бумагу,
+ * а «книга» — в пластик.
+ */
+const NAME_FIRST_CATEGORIES = new Set([
+  'Всё для дома',
+  'Хобби, спорт и туризм',
+  'Всё для детей и мам',
+  'Ремонт и стройка',
+  'Авто и запчасти',
+  'Сад и огород',
+]);
 
 /** Категория вещи → виды приёма по умолчанию. */
 export const CATEGORY_KINDS = {
@@ -51,14 +66,16 @@ const NAME_RULES = [
   ['jewelry', ['бусы', 'серьг', 'браслет', 'кольц', 'цепочк', 'бижутер', 'брошь', 'подвеск', 'ожерел']],
   ['health', ['тонометр', 'глюкометр', 'аптечк', 'ингалятор', 'костыл', 'ортопед', 'градусник', 'термометр', 'грелк']],
   ['books', ['книг', 'журнал', 'газет', 'учебник', 'тетрад', 'энциклопед', 'комикс']],
-  ['paper', ['макулатур', 'картон']],
-  ['plastic', ['пластик', 'пэт', 'пластмасс', 'полимер']],
+  ['paper', ['макулатур', 'картон', 'бумаг', 'бумажн', 'газет', 'журнал', 'книг',
+    'учебник', 'тетрад', 'энциклопед', 'комикс']],
+  ['plastic', ['пластик', 'пэт', 'пластмасс', 'полимер', 'полиэтилен', 'полипропилен', 'канистр']],
   ['glass', ['стекл', 'стеклотар']],
-  ['metal', ['металл', 'медь', 'желез', 'алюмин', 'латунь', 'чугун']],
+  ['metal', ['металл', 'медь', 'желез', 'алюмин', 'латунь', 'чугун', 'жестян',
+    'кастрюл', 'сковород', 'инструмент']],
   ['electronics', ['телефон', 'смартфон', 'планшет', 'ноутбук', 'компьютер', 'монитор',
     'телевизор', 'холодильник', 'стиральн', 'пылесос', 'микроволнов', 'наушник', 'колонк',
     'фотоаппарат', 'камер', 'клавиатур', 'принтер', 'зарядк', 'провод', 'кабел', 'батарейк',
-    'фен', 'утюг', 'чайник', 'электро']],
+    'фен', 'утюг', 'чайник', 'лампа', 'электро']],
   ['textile', ['платье', 'юбк', 'блуз', 'рубашк', 'футболк', 'носк', 'куртк', 'шапк', 'шарф',
     'кроссовк', 'обув', 'сапог', 'ботинк', 'пальто', 'джинс', 'костюм', 'свитер', 'кофт',
     'бель', 'одежд', 'текстил', 'постельн', 'полотенц', 'штор']],
@@ -72,7 +89,8 @@ const NAME_RULES = [
   ['garden', ['рассад', 'семен', 'грунт', 'горшок', 'лейк', 'садов', 'теплиц', 'удобрен', 'лопат', 'грабл']],
   ['pet', ['корм', 'клетк', 'переноск', 'поводок', 'ошейник', 'лежанк', 'аквариум', 'террариум', 'лоток', 'питомц']],
   ['auto', ['автошин', 'покрышк', 'автозапчаст', 'авточехл', 'автокресл', 'бампер']],
-  ['hazardous', ['акб', 'батарейк', 'ламп', 'ртут', 'автомасл', 'масл', 'растворител', 'аэрозол', 'хими']],
+  ['hazardous', ['акб', 'батарейк', 'ртутн', 'автомасл', 'растворител', 'аэрозол',
+    'химикат']],
 ];
 
 /** Текст официального перечня пункта → виды. */
@@ -103,7 +121,7 @@ const DIRECT = {
   metal: 'metal', hazardous: 'hazardous', clothing: 'textile', textile: 'textile',
   hygiene: 'hygiene', cosmetics: 'cosmetics', jewelry: 'jewelry', health: 'health',
   household: 'household', furniture: 'furniture', books: 'books', toys: 'toys',
-  food: 'food', sports: 'sports', garden: 'garden', pet: 'pet', auto: 'auto',
+  kids: 'kids', food: 'food', sports: 'sports', garden: 'garden', pet: 'pet', auto: 'auto',
 };
 
 const TYPE_TO_KIND = {
@@ -170,11 +188,18 @@ function matchRules(text, rules) {
   return [...out];
 }
 
-/** Виды вещи: для смешанных категорий название важнее категории. */
+/** Виды вещи: для смешанных и широких категорий название важнее категории. */
 export function kindsForItem(name, category) {
+  const rule = recyclingRuleFor(name, category);
+  if (rule?.blocked) return [];
+  if (rule?.kinds?.length) return [...new Set(rule.kinds)];
+
   const base = CATEGORY_KINDS[category] || [];
   const byName = matchRules(name, NAME_RULES);
   if (MIXED_CATEGORIES.has(category)) return byName.length ? byName : base;
+  if (NAME_FIRST_CATEGORIES.has(category) && byName.length) {
+    return [...new Set(byName)];
+  }
   return [...new Set([...base, ...byName])];
 }
 

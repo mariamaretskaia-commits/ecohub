@@ -23,6 +23,7 @@ import { rejectIfBanned } from './ban-gate.js';
 import { createDownloadToken, consumeDownloadToken } from './export-download.js';
 import { removeItemWithAssets } from './items.js';
 import { planRecyclingRoute, hasPointForItem } from './vision.js';
+import { recyclingRuleFor } from './recycling-rules.js';
 import { categorizeItems, categorizeByRules } from './categorize.js';
 import { cacheStore } from './catcache.js';
 import { logCategorization, logFix } from './catlog.js';
@@ -795,10 +796,18 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
           category_rules: categorizeByRules(it.name),
         })),
       });
-      const withPoints = await Promise.all(items.map(async (it) => ({
-        ...it,
-        pointFound: await hasPointForItem(it.name, it.category),
-      })));
+      const withPoints = await Promise.all(items.map(async (it) => {
+        const rule = recyclingRuleFor(it.name, it.category);
+        const blocked = Boolean(rule?.blocked);
+        return {
+          ...it,
+          pointFound: blocked ? false : await hasPointForItem(it.name, it.category),
+          blocked,
+          recyclingNote: blocked
+            ? [rule.reason, rule.advice].filter(Boolean).join(' ')
+            : null,
+        };
+      }));
       res.json({ items: withPoints, provider });
     } catch (err) {
       sendError(res, err);
@@ -818,7 +827,16 @@ export function registerVisionRoutes(app, authMiddleware, upload) {
       }
       cacheStore(cleanName, cleanCat);
       logFix(req.telegramUser, cleanName, cleanCat);
-      res.json({ ok: true });
+      const rule = recyclingRuleFor(cleanName, cleanCat);
+      const blocked = Boolean(rule?.blocked);
+      res.json({
+        ok: true,
+        pointFound: blocked ? false : await hasPointForItem(cleanName, cleanCat),
+        blocked,
+        recyclingNote: blocked
+          ? [rule.reason, rule.advice].filter(Boolean).join(' ')
+          : null,
+      });
     } catch (err) {
       sendError(res, err);
     }

@@ -51,11 +51,26 @@ export default function RecyclingPlanner({ loc = null, onClose }) {
     }
   };
 
-  const changeCategory = (idx, category, name) => {
+  const changeCategory = async (idx, category, name) => {
     setItems((prev) => prev.map((row, i) => (
       i === idx ? { ...row, category } : row
     )));
-    if (name) api.categorizeFix(name, category).catch(() => {});
+    if (!name) return;
+    try {
+      const res = await api.categorizeFix(name, category);
+      setItems((prev) => prev.map((row, i) => (
+        i === idx && row.name === name && row.category === category
+          ? {
+            ...row,
+            pointFound: res.pointFound,
+            blocked: Boolean(res.blocked),
+            recyclingNote: res.recyclingNote || null,
+          }
+          : row
+      )));
+    } catch {
+      // Подсказка не критична: категория уже изменена локально.
+    }
   };
 
   const handleBuildRoute = async () => {
@@ -144,10 +159,15 @@ export default function RecyclingPlanner({ loc = null, onClose }) {
               <div key={`${idx}-${row.name}`} className="card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <p className="type-title flex-1 min-w-0 break-words">{row.name}</p>
-                  {row.pointFound === false && (
+                  {row.blocked ? (
+                    <span className="type-kicker text-red-500 shrink-0">Не перерабатывается</span>
+                  ) : row.pointFound === false ? (
                     <span className="type-kicker text-red-500 shrink-0">Пункт не найден</span>
-                  )}
+                  ) : null}
                 </div>
+                {row.blocked && row.recyclingNote && (
+                  <p className="type-kicker text-red-500 mt-1 leading-relaxed">{row.recyclingNote}</p>
+                )}
                 <label className="block mt-2">
                   <span className="type-kicker">Категория</span>
                   <select

@@ -7,6 +7,7 @@
  */
 import { all } from './db.js';
 import { kindsForItem, pointKindsFor } from './point-kinds.js';
+import { recyclingRuleFor } from './recycling-rules.js';
 
 /** Категория вещи → виды приёма. */
 export function mapCategoryToKinds(category) {
@@ -51,6 +52,30 @@ function normalizeItems(items) {
     out.push({ name: item.name, category });
   }
   return out;
+}
+
+function emptyPlan(blocked = []) {
+  return { routes: [], uncovered: [], uncoveredItems: [], blocked };
+}
+
+function blockedEntry(item, rule) {
+  return {
+    name: item.name,
+    category: item.category,
+    reason: rule.reason,
+    advice: rule.advice,
+  };
+}
+
+function uncoveredInfo(wanted, indices) {
+  const items = [...indices].map((i) => ({
+    name: wanted[i].name,
+    category: wanted[i].category,
+  }));
+  return {
+    uncoveredItems: items,
+    uncovered: [...new Set(items.map((i) => i.category))],
+  };
 }
 
 /** Человекочитаемая подпись покрытия (вещи или категории). */
@@ -130,11 +155,18 @@ function planAllPoints(points, wanted, acceptedByPoint, userLat, userLng, opts) 
 
   const coveredKinds = new Set();
   scoped.forEach((m) => (acceptedByPoint.get(m.point.id) || []).forEach((k) => coveredKinds.add(k)));
-  const uncovered = [...new Set(
-    wanted.filter((w) => !w.kinds.some((k) => coveredKinds.has(k))).map((w) => w.category),
-  )];
+  const uncoveredIndices = wanted
+    .map((_, i) => i)
+    .filter((i) => !wanted[i].kinds.some((k) => coveredKinds.has(k)));
 
-  return { routes, uncovered, all: true, scope, total: scored.length, truncated };
+  return {
+    routes,
+    ...uncoveredInfo(wanted, uncoveredIndices),
+    all: true,
+    scope,
+    total: scored.length,
+    truncated,
+  };
 }
 
 /**
@@ -145,14 +177,28 @@ function planAllPoints(points, wanted, acceptedByPoint, userLat, userLng, opts) 
  */
 export async function planRecyclingRoute(items, userLat = null, userLng = null, opts = {}) {
   const list = normalizeItems(items);
-  if (!list.length) return { routes: [], uncovered: [] };
+  if (!list.length) return emptyPlan();
+
+  const blocked = [];
+  const wanted = [];
+  for (const item of list) {
+    const rule = recyclingRuleFor(item.name, item.category);
+    if (rule?.blocked) {
+      blocked.push(blockedEntry(item, rule));
+      continue;
+    }
+    wanted.push({ ...item, kinds: kindsForItem(item.name, item.category) });
+  }
+  if (!wanted.length) return emptyPlan(blocked);
 
   const points = await all('SELECT * FROM recycling_points');
-  const wanted = list.map((it) => ({ ...it, kinds: kindsForItem(it.name, it.category) }));
   const acceptedByPoint = new Map(points.map((p) => [p.id, pointKindsFor(p)]));
 
   if (opts.all) {
-    return planAllPoints(points, wanted, acceptedByPoint, userLat, userLng, opts);
+    return {
+      ...planAllPoints(points, wanted, acceptedByPoint, userLat, userLng, opts),
+      blocked,
+    };
   }
 
   const distKm = (point) => {
@@ -197,6 +243,9 @@ export async function planRecyclingRoute(items, userLat = null, userLng = null, 
     best.covered.forEach((i) => remaining.delete(i));
   }
 
-  const uncovered = [...new Set([...remaining].map((i) => wanted[i].category))];
-  return { routes, uncovered };
+  return {
+    routes,
+    ...uncoveredInfo(wanted, remaining),
+    blocked,
+  };
 }

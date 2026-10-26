@@ -41,7 +41,8 @@ test('mapCategoryToKinds: категории → виды приёма', () => {
 test('kindsForItem: смешанная категория «Красота и здоровье»', () => {
   assert.deepEqual(kindsForItem('прокладки', 'Красота и здоровье'), ['hygiene']);
   assert.deepEqual(kindsForItem('подгузники Pampers', 'Красота и здоровье'), ['hygiene']);
-  assert.deepEqual(kindsForItem('туалетная бумага', 'Красота и здоровье'), ['hygiene']);
+  // Туалетная бумага — гигиена, но не макулатура и не приём: правилами блокируется.
+  assert.deepEqual(kindsForItem('туалетная бумага', 'Красота и здоровье'), []);
   assert.deepEqual(kindsForItem('духи Chanel', 'Красота и здоровье'), ['cosmetics']);
   assert.deepEqual(kindsForItem('помада', 'Красота и здоровье'), ['cosmetics']);
   assert.deepEqual(kindsForItem('жемчужные бусы', 'Красота и здоровье'), ['jewelry']);
@@ -201,7 +202,80 @@ test('planRecyclingRoute all: отсутствующий вид уходит в 
   assert.deepEqual(plan.uncovered, ['Мебель']);
 });
 
+test('planRecyclingRoute: заблокированная вещь не строит маршрут', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute([
+    { name: 'чеки автобусные', category: 'Авто и запчасти' },
+  ]);
+  assert.deepEqual(plan.routes, []);
+  assert.deepEqual(plan.uncovered, []);
+  assert.deepEqual(plan.uncoveredItems, []);
+  assert.equal(plan.blocked.length, 1);
+  assert.equal(plan.blocked[0].name, 'чеки автобусные');
+  assert.match(plan.blocked[0].reason, /термобумага/);
+  assert.ok(plan.blocked[0].advice);
+});
+
+test('planRecyclingRoute: заблокированное не мешает uncovered', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute([
+    { name: 'салфетки', category: 'Всё для дома' },
+    { name: 'диван', category: 'Мебель' },
+  ]);
+  assert.deepEqual(plan.routes, []);
+  assert.equal(plan.blocked.length, 1);
+  assert.equal(plan.blocked[0].name, 'салфетки');
+  assert.deepEqual(plan.uncovered, ['Мебель']);
+  assert.deepEqual(plan.uncoveredItems, [{ name: 'диван', category: 'Мебель' }]);
+});
+
+test('planRecyclingRoute: батарейки идут только в hazardous-пункт', async () => {
+  await seedPoints();
+  await run(
+    `INSERT INTO recycling_points (name, type, lat, lng, address, accepts) VALUES (?, ?, ?, ?, ?, ?)`,
+    'Пункт Батарейки', 'hazardous', 53.73, 23.88, 'ул. Тест 7', 'батарейки',
+  );
+  const plan = await planRecyclingRoute([
+    { name: 'батарейки', category: 'Электроника' },
+  ]);
+  assert.equal(plan.routes.length, 1);
+  assert.equal(plan.routes[0].point.name, 'Пункт Батарейки');
+  assert.deepEqual(plan.blocked, []);
+});
+
+test('planRecyclingRoute: мягкая игрушка и лампа накаливания не идут в пункты', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute([
+    { name: 'мягкая игрушка', category: 'Всё для детей и мам' },
+    { name: 'лампа накаливания', category: 'Всё для дома' },
+  ]);
+  assert.deepEqual(plan.routes, []);
+  assert.deepEqual(plan.uncovered, []);
+  assert.deepEqual(
+    plan.blocked.map((b) => b.name).sort(),
+    ['лампа накаливания', 'мягкая игрушка'],
+  );
+});
+
+test('planRecyclingRoute all: заблокированная вещь не попадает в uncovered', async () => {
+  await seedPoints();
+  const plan = await planRecyclingRoute(
+    [{ name: 'салфетки', category: 'Всё для дома' }],
+    null, null,
+    { all: true, settlement: 'Гродно' },
+  );
+  assert.deepEqual(plan.routes, []);
+  assert.deepEqual(plan.uncovered, []);
+  assert.deepEqual(plan.uncoveredItems, []);
+  assert.equal(plan.blocked.length, 1);
+});
+
 test('planRecyclingRoute: пустой список → пустой план', async () => {
   const plan = await planRecyclingRoute([]);
-  assert.deepEqual(plan, { routes: [], uncovered: [] });
+  assert.deepEqual(plan, {
+    routes: [],
+    uncovered: [],
+    uncoveredItems: [],
+    blocked: [],
+  });
 });
